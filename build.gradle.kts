@@ -4,6 +4,12 @@ plugins {
     id("org.jetbrains.kotlin.android") version "2.0.21" apply false
 }
 
+allprojects {
+    dependencyLocking {
+        lockAllConfigurations()
+    }
+}
+
 // Set namespace for Termux submodule libraries (AGP 8.x requires namespace in build.gradle)
 subprojects {
     plugins.withId("com.android.library") {

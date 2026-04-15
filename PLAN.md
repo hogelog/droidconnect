@@ -148,18 +148,13 @@ implementation("org.connectbot:sshlib:2.2.22") // バージョンは最新を確
 project-root/
 ├── app/
 │   └── src/main/
-│       ├── java/org/example/sshclient/
+│       ├── java/org/hogel/droidconnect/
 │       │   ├── MainActivity.kt
 │       │   ├── ui/
-│       │   │   ├── TerminalActivity.kt
-│       │   │   └── ConnectionListActivity.kt
-│       │   ├── ssh/
-│       │   │   ├── SshSession.kt
-│       │   │   └── SshKeyManager.kt
-│       │   └── data/
-│       │       ├── ConnectionProfile.kt
-│       │       ├── ConnectionDao.kt
-│       │       └── AppDatabase.kt
+│       │   │   └── TerminalActivity.kt
+│       │   └── ssh/
+│       │       ├── SshSession.kt
+│       │       └── SshKeyManager.kt
 │       └── res/
 ├── vendor/
 │   └── termux-app/              (git submodule)

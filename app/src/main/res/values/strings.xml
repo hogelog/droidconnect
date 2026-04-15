@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DroidConnect</string>
+    <string name="connect">Connect</string>
+    <string name="generate_key">Generate Key</string>
+    <string name="host">Host</string>
+    <string name="port">Port</string>
+    <string name="username">Username</string>
+    <string name="public_key">Public Key</string>
+    <string name="copy_public_key">Copy Public Key</string>
+    <string name="key_generated">Ed25519 key generated</string>
+    <string name="key_already_exists">Key already exists</string>
+    <string name="public_key_copied">Public key copied to clipboard</string>
+    <string name="connecting">Connecting…</string>
+    <string name="connection_failed">Connection failed</string>
+    <string name="disconnected">Disconnected</string>
+</resources>

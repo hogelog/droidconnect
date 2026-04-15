@@ -2,6 +2,7 @@ package org.hogel.droidconnect.ssh
 
 import com.trilead.ssh2.Connection
 import com.trilead.ssh2.ServerHostKeyVerifier
+import com.trilead.ssh2.Session
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -31,7 +32,7 @@ class SshSession(
     fun connect() {
         val conn = Connection(host, port)
         // Accept all host keys for Phase 1 (personal use only)
-        val acceptAllVerifier = ServerHostKeyVerifier { _, _, _ -> true }
+        val acceptAllVerifier = ServerHostKeyVerifier { _, _, _, _ -> true }
         conn.connect(acceptAllVerifier, 10_000, 10_000)
 
         val authenticated = conn.authenticateWithPublicKey(username, privateKeyPem, null)

@@ -36,11 +36,15 @@ android {
     }
 }
 
+// sshlib bundles error_prone_annotations classes in its fat jar, causing duplicate
+// class errors with the separate error_prone_annotations dependency pulled transitively.
+configurations.configureEach {
+    exclude(group = "com.google.errorprone", module = "error_prone_annotations")
+}
+
 dependencies {
     implementation(project(":terminal-view"))
-    implementation("org.connectbot:sshlib:2.2.22") {
-        exclude(group = "com.google.errorprone", module = "error_prone_annotations")
-    }
+    implementation("org.connectbot:sshlib:2.2.22")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")

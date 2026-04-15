@@ -38,7 +38,9 @@ android {
 
 dependencies {
     implementation(project(":terminal-view"))
-    implementation("org.connectbot:sshlib:2.2.22")
+    implementation("org.connectbot:sshlib:2.2.22") {
+        exclude(group = "com.google.errorprone", module = "error_prone_annotations")
+    }
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")

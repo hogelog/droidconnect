@@ -300,6 +300,18 @@ class TerminalActivity : AppCompatActivity() {
             writeCodePointToSsh(cp, false)
             return true
         }
+
+        override fun logError(tag: String?, message: String?) { Log.e(tag ?: TAG, message ?: "") }
+        override fun logWarn(tag: String?, message: String?) { Log.w(tag ?: TAG, message ?: "") }
+        override fun logInfo(tag: String?, message: String?) { Log.i(tag ?: TAG, message ?: "") }
+        override fun logDebug(tag: String?, message: String?) { Log.d(tag ?: TAG, message ?: "") }
+        override fun logVerbose(tag: String?, message: String?) { Log.v(tag ?: TAG, message ?: "") }
+        override fun logStackTraceWithMessage(tag: String?, message: String?, e: Exception?) {
+            Log.e(tag ?: TAG, message, e)
+        }
+        override fun logStackTrace(tag: String?, e: Exception?) {
+            Log.e(tag ?: TAG, "Stack trace", e)
+        }
     }
 
     companion object {

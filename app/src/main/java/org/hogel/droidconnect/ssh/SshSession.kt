@@ -58,7 +58,7 @@ class SshSession(
 
     /** Resize the PTY window. */
     fun resizeWindow(columns: Int, rows: Int) {
-        session?.resizeTerminal(columns, rows, 0, 0)
+        session?.resizePTY(columns, rows, 0, 0)
     }
 
     /** Disconnect and clean up resources. */

@@ -1,4 +1,4 @@
-package com.hogelog.droidconnect
+package org.hogel.droidconnect
 
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -7,9 +7,9 @@ import android.os.Bundle
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import com.hogelog.droidconnect.databinding.ActivityMainBinding
-import com.hogelog.droidconnect.ssh.SshKeyManager
-import com.hogelog.droidconnect.ui.TerminalActivity
+import org.hogel.droidconnect.databinding.ActivityMainBinding
+import org.hogel.droidconnect.ssh.SshKeyManager
+import org.hogel.droidconnect.ui.TerminalActivity
 
 class MainActivity : AppCompatActivity() {
 

@@ -1,4 +1,4 @@
-package com.hogelog.droidconnect.ui
+package org.hogel.droidconnect.ui
 
 import android.graphics.Typeface
 import android.os.Bundle
@@ -9,10 +9,10 @@ import android.view.MotionEvent
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import com.hogelog.droidconnect.R
-import com.hogelog.droidconnect.databinding.ActivityTerminalBinding
-import com.hogelog.droidconnect.ssh.SshSession
-import com.hogelog.droidconnect.ssh.SshKeyManager
+import org.hogel.droidconnect.R
+import org.hogel.droidconnect.databinding.ActivityTerminalBinding
+import org.hogel.droidconnect.ssh.SshSession
+import org.hogel.droidconnect.ssh.SshKeyManager
 import com.termux.terminal.KeyHandler
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession

@@ -1,4 +1,4 @@
-package com.hogelog.droidconnect.ssh
+package org.hogel.droidconnect.ssh
 
 import android.content.Context
 import java.io.File

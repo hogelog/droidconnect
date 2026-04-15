@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.hogelog.droidconnect"
+    namespace = "org.hogel.droidconnect"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.hogelog.droidconnect"
+        applicationId = "org.hogel.droidconnect"
         minSdk = 34
         targetSdk = 36
         versionCode = 1

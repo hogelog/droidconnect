@@ -1,4 +1,4 @@
-package com.hogelog.droidconnect.ssh
+package org.hogel.droidconnect.ssh
 
 import com.trilead.ssh2.Connection
 import com.trilead.ssh2.ServerHostKeyVerifier

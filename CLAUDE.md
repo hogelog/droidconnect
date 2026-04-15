@@ -20,9 +20,9 @@ Requires:
 
 ### Key Packages
 
-- `com.hogelog.droidconnect` - Main activity (connection UI)
-- `com.hogelog.droidconnect.ui` - Terminal UI (TerminalActivity)
-- `com.hogelog.droidconnect.ssh` - SSH session management and key generation
+- `org.hogel.droidconnect` - Main activity (connection UI)
+- `org.hogel.droidconnect.ui` - Terminal UI (TerminalActivity)
+- `org.hogel.droidconnect.ssh` - SSH session management and key generation
 
 ## Architecture
 

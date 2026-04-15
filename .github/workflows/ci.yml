@@ -24,8 +24,11 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # Fix deprecated classifier() removed in Gradle 8.x (used by Termux submodule)
+      # Remove publishing blocks incompatible with Gradle 8.x (unused by this project)
       - name: Patch vendor build scripts
-        run: sed -i 's/classifier "sources"/archiveClassifier.set("sources")/' vendor/termux-app/terminal-emulator/build.gradle
+        run: |
+          for f in vendor/termux-app/terminal-emulator/build.gradle vendor/termux-app/terminal-view/build.gradle; do
+            sed -i "/apply plugin: 'maven-publish'/d; /task sourceJar/,/^}/d; /afterEvaluate/,/^}/d" "$f"
+          done
 
       - run: ./gradlew assembleDebug lint

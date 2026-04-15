@@ -24,4 +24,8 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # Fix deprecated classifier() removed in Gradle 8.x (used by Termux submodule)
+      - name: Patch vendor build scripts
+        run: sed -i 's/classifier "sources"/archiveClassifier.set("sources")/' vendor/termux-app/terminal-emulator/build.gradle
+
       - run: ./gradlew assembleDebug lint

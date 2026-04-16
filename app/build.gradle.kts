@@ -55,3 +55,26 @@ dependencies {
     implementation("androidx.activity:activity-ktx:1.9.3")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
 }
+
+// Resolves every resolvable configuration so `--write-locks` captures all
+// runtime/compile classpaths. `./gradlew dependencies` alone misses some
+// resolutions that only occur during the actual build.
+tasks.register("resolveAndLockAll") {
+    notCompatibleWithConfigurationCache("Filters configurations at execution time")
+    doFirst {
+        require(gradle.startParameter.isWriteDependencyLocks) {
+            "$path must be run with --write-locks"
+        }
+    }
+    doLast {
+        configurations.filter {
+            it.isCanBeResolved &&
+                    // Only lock the classpaths the actual build uses. Other
+                    // configurations (metadata, kotlin-build-tools, internal
+                    // AGP test platform, android test classpaths) either
+                    // resolve against incompatible subproject variants or are
+                    // irrelevant to the production lock state.
+                    it.name.matches(Regex("(debug|release)(UnitTest)?(Compile|Runtime)Classpath"))
+        }.forEach { it.resolve() }
+    }
+}

@@ -8,6 +8,17 @@ dependencyLocking {
     lockAllConfigurations()
 }
 
+// Regenerate all dependency lockfiles in one command:
+//     ./gradlew writeLocks --write-locks
+tasks.register("writeLocks") {
+    dependsOn(":dependencies", ":app:dependencies")
+    doFirst {
+        require(gradle.startParameter.isWriteDependencyLocks) {
+            "writeLocks must be run with --write-locks: ./gradlew writeLocks --write-locks"
+        }
+    }
+}
+
 // Set namespace for Termux submodule libraries (AGP 8.x requires namespace in build.gradle)
 subprojects {
     plugins.withId("com.android.library") {

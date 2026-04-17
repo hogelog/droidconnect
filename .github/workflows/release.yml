@@ -34,6 +34,8 @@ jobs:
           done
 
       - name: Build debug APK
+        env:
+          SENTRY_DSN: ${{ vars.SENTRY_DSN }}
         run: ./gradlew assembleDebug
 
       - name: Stage release artifacts

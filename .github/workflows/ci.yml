@@ -61,12 +61,44 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           SERVER_URL: ${{ github.server_url }}
           REPO: ${{ github.repository }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
         run: |
           SHORT_SHA="${HEAD_SHA:0:7}"
           TAG="ci-${SHORT_SHA}"
           APK_NAME="droidconnect-${SHORT_SHA}-debug.apk"
           RELEASE_URL="${SERVER_URL}/${REPO}/releases/tag/${TAG}"
-          gh pr comment "$PR_NUMBER" --body "CI build for \`${HEAD_SHA}\` is ready.
+          MARKER="<!-- droidconnect-ci-build -->"
+
+          # Hide previous CI build comments on this PR
+          gh api graphql \
+            -F owner="$REPO_OWNER" -F name="$REPO_NAME" -F number="$PR_NUMBER" \
+            -f query='
+              query($owner:String!, $name:String!, $number:Int!) {
+                repository(owner: $owner, name: $name) {
+                  pullRequest(number: $number) {
+                    comments(first: 100) {
+                      nodes { id body isMinimized }
+                    }
+                  }
+                }
+              }' \
+            --jq ".data.repository.pullRequest.comments.nodes[]
+                  | select((.isMinimized | not) and (.body | startswith(\"${MARKER}\")))
+                  | .id" \
+            | while read -r node_id; do
+                [ -z "$node_id" ] && continue
+                echo "Hiding previous CI comment: $node_id"
+                gh api graphql -F id="$node_id" -f query='
+                  mutation($id:ID!) {
+                    minimizeComment(input: {subjectId: $id, classifier: OUTDATED}) {
+                      minimizedComment { isMinimized }
+                    }
+                  }'
+              done
+
+          gh pr comment "$PR_NUMBER" --body "${MARKER}
+          CI build for \`${HEAD_SHA}\` is ready.
 
           - Release: ${RELEASE_URL}
           - APK: \`${APK_NAME}\`

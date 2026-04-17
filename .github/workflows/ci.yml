@@ -1,12 +1,12 @@
 name: CI
 
 on:
-  push:
   pull_request:
     branches: [main]
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   build:
@@ -35,32 +35,80 @@ jobs:
 
       - run: ./gradlew assembleDebug lint
 
-      - name: Publish CI prerelease
-        if: github.event_name == 'push'
+      - name: Publish CI prerelease for PR
+        id: ci_prerelease
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          TAG="ci-${SHORT_SHA}"
-          cp app/build/outputs/apk/debug/app-debug.apk \
-             "droidconnect-${SHORT_SHA}-debug.apk"
+          SHORT_SHA="${HEAD_SHA:0:7}"
+          TAG="ci-pr-${PR_NUMBER}"
+          APK_NAME="droidconnect-pr-${PR_NUMBER}-${SHORT_SHA}-debug.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "$APK_NAME"
+          # Replace any existing release for this PR so only one prerelease
+          # exists per PR at any time.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Deleting previous release ${TAG}"
+            gh release delete "$TAG" --yes --cleanup-tag
+          fi
           gh release create "$TAG" \
-            --title "CI build ${SHORT_SHA}" \
-            --notes "Automatic CI build of ${GITHUB_SHA}" \
+            --title "CI build for PR #${PR_NUMBER} (${SHORT_SHA})" \
+            --notes "Automatic CI build of ${HEAD_SHA} for PR #${PR_NUMBER}" \
             --prerelease \
-            --target "${GITHUB_SHA}" \
-            "droidconnect-${SHORT_SHA}-debug.apk"
+            --target "${HEAD_SHA}" \
+            "$APK_NAME"
+          {
+            echo "tag=${TAG}"
+            echo "apk_name=${APK_NAME}"
+          } >> "$GITHUB_OUTPUT"
 
-      - name: Prune old CI prereleases (keep last 5)
-        if: github.event_name == 'push'
+      - name: Comment release info on PR
+        if: steps.ci_prerelease.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          SERVER_URL: ${{ github.server_url }}
+          REPO: ${{ github.repository }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          TAG: ${{ steps.ci_prerelease.outputs.tag }}
+          APK_NAME: ${{ steps.ci_prerelease.outputs.apk_name }}
         run: |
-          gh release list --limit 100 --json tagName,createdAt,isPrerelease \
-            | jq -r '[.[] | select(.isPrerelease and (.tagName | startswith("ci-")))]
-                     | sort_by(.createdAt) | reverse | .[5:] | .[].tagName' \
-            | while read -r tag; do
-                [ -z "$tag" ] && continue
-                echo "Deleting old prerelease: $tag"
-                gh release delete "$tag" --yes --cleanup-tag
+          RELEASE_URL="${SERVER_URL}/${REPO}/releases/tag/${TAG}"
+          MARKER="<!-- droidconnect-ci-build -->"
+
+          # Hide previous CI build comments on this PR
+          gh api graphql \
+            -F owner="$REPO_OWNER" -F name="$REPO_NAME" -F number="$PR_NUMBER" \
+            -f query='
+              query($owner:String!, $name:String!, $number:Int!) {
+                repository(owner: $owner, name: $name) {
+                  pullRequest(number: $number) {
+                    comments(first: 100) {
+                      nodes { id body isMinimized }
+                    }
+                  }
+                }
+              }' \
+            --jq ".data.repository.pullRequest.comments.nodes[]
+                  | select((.isMinimized | not) and (.body | startswith(\"${MARKER}\")))
+                  | .id" \
+            | while read -r node_id; do
+                [ -z "$node_id" ] && continue
+                echo "Hiding previous CI comment: $node_id"
+                gh api graphql -F id="$node_id" -f query='
+                  mutation($id:ID!) {
+                    minimizeComment(input: {subjectId: $id, classifier: OUTDATED}) {
+                      minimizedComment { isMinimized }
+                    }
+                  }'
               done
+
+          gh pr comment "$PR_NUMBER" --body "${MARKER}
+          CI build for \`${HEAD_SHA}\` is ready.
+
+          - Release: ${RELEASE_URL}
+          - APK: \`${APK_NAME}\`
+          - Revision: \`${HEAD_SHA}\`"

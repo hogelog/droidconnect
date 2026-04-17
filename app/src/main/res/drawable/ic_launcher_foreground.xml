@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adaptive icon foreground. 108x108 viewport with the visual mark centered in
+  the 66x66 safe zone (27..81 on each axis) so it stays inside every launcher
+  mask. The mark is a terminal prompt ">_" which evokes SSH / shell access.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Chevron ">" -->
+    <path
+        android:pathData="M40,40 L58,54 L40,68"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+    <!-- Cursor "_" -->
+    <path
+        android:pathData="M52,72 L70,72"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="8"
+        android:strokeLineCap="round" />
+
+</vector>

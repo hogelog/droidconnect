@@ -37,12 +37,12 @@ jobs:
       - run: ./gradlew assembleDebug lint
 
       - name: Publish CI prerelease
-        id: ci_prerelease
         if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHORT_SHA: ${{ github.sha }}
         run: |
-          SHORT_SHA=$(git rev-parse --short HEAD)
+          SHORT_SHA="${SHORT_SHA:0:7}"
           TAG="ci-${SHORT_SHA}"
           APK_NAME="droidconnect-${SHORT_SHA}-debug.apk"
           cp app/build/outputs/apk/debug/app-debug.apk "$APK_NAME"
@@ -52,42 +52,25 @@ jobs:
             --prerelease \
             --target "${GITHUB_SHA}" \
             "$APK_NAME"
-          RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}"
-          {
-            echo "short_sha=${SHORT_SHA}"
-            echo "tag=${TAG}"
-            echo "apk_name=${APK_NAME}"
-            echo "release_url=${RELEASE_URL}"
-          } >> "$GITHUB_OUTPUT"
 
-      - name: Comment release info on associated PRs
-        if: github.event_name == 'push' && steps.ci_prerelease.outcome == 'success'
+      - name: Comment release info on PR
+        if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SHORT_SHA: ${{ steps.ci_prerelease.outputs.short_sha }}
-          TAG: ${{ steps.ci_prerelease.outputs.tag }}
-          APK_NAME: ${{ steps.ci_prerelease.outputs.apk_name }}
-          RELEASE_URL: ${{ steps.ci_prerelease.outputs.release_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          SERVER_URL: ${{ github.server_url }}
+          REPO: ${{ github.repository }}
         run: |
-          PR_NUMBERS=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" \
-            --jq '.[] | select(.state == "open") | .number')
-          if [ -z "$PR_NUMBERS" ]; then
-            echo "No open PR associated with ${GITHUB_SHA}"
-            exit 0
-          fi
-          BODY=$(cat <<EOF
-          CI build for \`${GITHUB_SHA}\` is ready.
+          SHORT_SHA="${HEAD_SHA:0:7}"
+          TAG="ci-${SHORT_SHA}"
+          APK_NAME="droidconnect-${SHORT_SHA}-debug.apk"
+          RELEASE_URL="${SERVER_URL}/${REPO}/releases/tag/${TAG}"
+          gh pr comment "$PR_NUMBER" --body "CI build for \`${HEAD_SHA}\` is ready.
 
           - Release: ${RELEASE_URL}
           - APK: \`${APK_NAME}\`
-          - Revision: \`${GITHUB_SHA}\` (\`${SHORT_SHA}\`)
-          EOF
-          )
-          while read -r PR; do
-            [ -z "$PR" ] && continue
-            echo "Commenting on PR #${PR}"
-            gh pr comment "$PR" --body "$BODY"
-          done <<< "$PR_NUMBERS"
+          - Revision: \`${HEAD_SHA}\`"
 
       - name: Prune old CI prereleases (keep last 5)
         if: github.event_name == 'push'

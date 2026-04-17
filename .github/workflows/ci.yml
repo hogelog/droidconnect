@@ -1,7 +1,6 @@
 name: CI
 
 on:
-  push:
   pull_request:
     branches: [main]
 
@@ -37,7 +36,6 @@ jobs:
       - run: ./gradlew assembleDebug lint
 
       - name: Publish CI prerelease for PR
-        if: github.event_name == 'pull_request'
         id: ci_prerelease
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -66,7 +64,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Comment release info on PR
-        if: github.event_name == 'pull_request' && steps.ci_prerelease.outcome == 'success'
+        if: steps.ci_prerelease.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}

@@ -34,7 +34,10 @@ jobs:
             sed -i "/apply plugin: 'maven-publish'/d; /task sourceJar/,/^}/d; /afterEvaluate/,/^}/d" "$f"
           done
 
-      - run: ./gradlew assembleDebug lint
+      - name: Build debug APK and run lint
+        env:
+          SENTRY_DSN: ${{ vars.SENTRY_DSN }}
+        run: ./gradlew assembleDebug lint
 
       - name: Publish CI prerelease for PR
         id: ci_prerelease

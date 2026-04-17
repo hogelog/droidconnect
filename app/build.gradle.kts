@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("io.sentry.android.gradle")
 }
 
 // Lock only the user-facing classpaths that actually ship in the APK and
@@ -24,6 +25,15 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
+
+        // Sentry DSN is injected at build time from the SENTRY_DSN environment
+        // variable (sourced from GitHub Actions `vars.SENTRY_DSN` in CI).
+        // DSN is a public client-side identifier per Sentry's guidance, so
+        // committing it as a var (not a secret) is intentional. When the env
+        // var is absent (e.g. local builds without Sentry configured), the
+        // placeholder expands to an empty string and Sentry auto-init becomes
+        // a no-op -- the SDK detects the empty DSN and skips initialization.
+        manifestPlaceholders["sentryDsn"] = System.getenv("SENTRY_DSN") ?: ""
     }
 
     // Use a committed debug keystore so CI builds across PRs share the same
@@ -66,6 +76,15 @@ configurations.configureEach {
     exclude(group = "com.google.errorprone", module = "error_prone_annotations")
 }
 
+// Sentry Gradle plugin configuration. Symbol/mapping uploads require
+// SENTRY_AUTH_TOKEN, which is deliberately out of scope for this PR --
+// they will be wired up in a follow-up along with release.yml changes.
+sentry {
+    autoUploadProguardMapping.set(false)
+    autoUploadNativeSymbols.set(false)
+    includeSourceContext.set(false)
+}
+
 dependencies {
     implementation(project(":terminal-view"))
     implementation("org.connectbot:sshlib:2.2.22")
@@ -74,6 +93,7 @@ dependencies {
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.activity:activity-ktx:1.9.3")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    implementation("io.sentry:sentry-android:8.39.1")
 
     // Pinned explicitly to stabilize dependency locking.
     // AGP 8.7.3's data binding artifact transforms resolve

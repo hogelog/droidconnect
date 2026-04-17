@@ -11,6 +11,15 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.DroidConnect">
 
+        <!-- Sentry crash reporting. The DSN is injected at build time from
+             the SENTRY_DSN environment variable (see app/build.gradle.kts).
+             When unset, the placeholder expands to "" and the SDK skips
+             initialization, so local builds without Sentry configured work
+             unchanged. DSN is a public client-side value per Sentry's
+             guidance and is intentionally stored in GitHub Actions vars,
+             not secrets. -->
+        <meta-data android:name="io.sentry.dsn" android:value="${sentryDsn}" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true">

@@ -14,12 +14,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Check out the PR head branch (not the merge ref) so a regenerated
-      # gradle.lockfile can be committed back to the PR.
       - uses: actions/checkout@v6
         with:
           submodules: recursive
-          ref: ${{ github.head_ref }}
 
       - uses: actions/setup-java@v5
         with:
@@ -37,45 +34,10 @@ jobs:
             sed -i "/apply plugin: 'maven-publish'/d; /task sourceJar/,/^}/d; /afterEvaluate/,/^}/d" "$f"
           done
 
-      # Regenerate the dependency lockfile so PRs that change dependencies
-      # don't require a local gradle run -- droidconnect is developed
-      # without a PC (phone + aka agent), and the aka sandbox cannot run
-      # gradle due to thread/process limits.
-      #
-      # If the lockfile changed, commit it back to the PR branch and stop
-      # this run. The push uses GITHUB_TOKEN, which by design does NOT
-      # retrigger CI -- the PR author must re-run CI once (e.g. via the
-      # GitHub mobile "Re-run jobs" button). That single click then builds
-      # against the now-current lockfile.
-      - name: Regenerate gradle.lockfile
-        run: ./gradlew writeLocks --write-locks
-
-      - name: Commit regenerated gradle.lockfile if changed
-        id: lock_commit
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          if git diff --quiet app/gradle.lockfile; then
-            echo "Lockfile unchanged; continuing with build."
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/gradle.lockfile
-          git commit -m "chore: regenerate gradle.lockfile"
-          git push origin "HEAD:${GITHUB_HEAD_REF}"
-          echo "changed=true" >> "$GITHUB_OUTPUT"
-          gh pr comment "$PR_NUMBER" --body "gradle.lockfile regenerated and pushed by CI. Re-run this workflow to build against the updated lockfile."
-
-      - name: Build debug APK and run lint
-        if: steps.lock_commit.outputs.changed == 'false'
-        run: ./gradlew assembleDebug lint
+      - run: ./gradlew assembleDebug lint
 
       - name: Publish CI prerelease for PR
         id: ci_prerelease
-        if: steps.lock_commit.outputs.changed == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}

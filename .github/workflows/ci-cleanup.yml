@@ -8,19 +8,21 @@ permissions:
   contents: write
 
 jobs:
-  delete-prerelease:
+  prune-prereleases:
     runs-on: ubuntu-latest
     steps:
-      - name: Delete CI prerelease for closed PR
+      - name: Prune old CI prereleases (keep latest 5)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          KEEP: 5
         run: |
-          TAG="ci-pr-${PR_NUMBER}"
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Deleting CI prerelease ${TAG}"
-            gh release delete "$TAG" --yes --cleanup-tag
-          else
-            echo "No CI prerelease ${TAG} to delete"
-          fi
+          gh release list --limit 200 \
+            --json tagName,createdAt,isPrerelease \
+            --jq "[.[] | select(.isPrerelease and (.tagName | startswith(\"ci-\")))]
+                  | sort_by(.createdAt) | reverse | .[${KEEP}:] | .[].tagName" \
+            | while read -r TAG; do
+                [ -z "$TAG" ] && continue
+                echo "Deleting old CI prerelease ${TAG}"
+                gh release delete "$TAG" --yes --cleanup-tag
+              done

@@ -26,6 +26,19 @@ android {
         versionName = "0.1.0"
     }
 
+    // Use a committed debug keystore so CI builds across PRs share the same
+    // signing identity. Without this, AGP auto-generates a fresh debug keystore
+    // on every CI runner, producing APKs that cannot be installed as updates
+    // over each other (Android rejects installs with mismatched signatures).
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false

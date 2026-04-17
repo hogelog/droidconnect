@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -33,9 +36,32 @@ jobs:
 
       - run: ./gradlew assembleDebug lint
 
-      - name: Upload debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: droidconnect-debug-${{ github.sha }}
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+      - name: Publish CI prerelease
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          TAG="ci-${SHORT_SHA}"
+          cp app/build/outputs/apk/debug/app-debug.apk \
+             "droidconnect-${SHORT_SHA}-debug.apk"
+          gh release create "$TAG" \
+            --title "CI build ${SHORT_SHA}" \
+            --notes "Automatic CI build of ${GITHUB_SHA}" \
+            --prerelease \
+            --target "${GITHUB_SHA}" \
+            "droidconnect-${SHORT_SHA}-debug.apk"
+
+      - name: Prune old CI prereleases (keep last 5)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release list --limit 100 --json tagName,createdAt,isPrerelease \
+            | jq -r '[.[] | select(.isPrerelease and (.tagName | startswith("ci-")))]
+                     | sort_by(.createdAt) | reverse | .[5:] | .[].tagName' \
+            | while read -r tag; do
+                [ -z "$tag" ] && continue
+                echo "Deleting old prerelease: $tag"
+                gh release delete "$tag" --yes --cleanup-tag
+              done

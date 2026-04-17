@@ -2,13 +2,8 @@
 
 Android SSH client designed for Claude Code TUI interaction.
 
-## Build
+## Requirements
 
-```bash
-./gradlew assembleDebug
-```
-
-Requires:
 - Android SDK with compileSdk 36
 - NDK (for terminal-emulator native code)
 - JDK 17+

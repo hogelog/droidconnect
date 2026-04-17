@@ -3,8 +3,15 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-dependencyLocking {
-    lockAllConfigurations()
+// Lock only the user-facing classpaths that actually ship in the APK and
+// that compile against. Internal/metadata/test configurations (Kotlin
+// multiplatform metadata, AGP test platform, Kotlin compiler classpaths)
+// have unstable resolution behavior between `:app:dependencies` and the
+// actual build, so locking them produces brittle lockfiles.
+configurations.configureEach {
+    if (isCanBeResolved && name.matches(Regex("(debug|release)(Compile|Runtime)Classpath"))) {
+        resolutionStrategy.activateDependencyLocking()
+    }
 }
 
 android {
@@ -54,9 +61,4 @@ dependencies {
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.activity:activity-ktx:1.9.3")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
-    // Declared explicitly so the runtime classpath resolution matches CI.
-    // Without this, `:app:dependencies --write-locks` omits it from
-    // debug/releaseRuntimeClasspath but CI's full build resolves it there,
-    // producing a strict dependency-lock mismatch.
-    implementation("org.jetbrains.kotlin:kotlin-stdlib-common:2.0.21")
 }

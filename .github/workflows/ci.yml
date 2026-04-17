@@ -2,7 +2,6 @@ name: CI
 
 on:
   push:
-    branches: [main]
   pull_request:
     branches: [main]
 
@@ -37,7 +36,7 @@ jobs:
       - run: ./gradlew assembleDebug lint
 
       - name: Publish CI prerelease
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -53,7 +52,7 @@ jobs:
             "droidconnect-${SHORT_SHA}-debug.apk"
 
       - name: Prune old CI prereleases (keep last 5)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

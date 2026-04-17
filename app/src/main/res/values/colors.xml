@@ -1,5 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Material 3 color scheme generated from seed #1B5E20 (deep green).
+  The values here are the light-theme palette; values-night/colors.xml
+  defines the dark-theme equivalents under the same names so themes.xml
+  can reference a single set of aliases.
+-->
 <resources>
-    <color name="primary">#FF1B5E20</color>
+    <color name="md_theme_primary">#006E1C</color>
+    <color name="md_theme_onPrimary">#FFFFFF</color>
+    <color name="md_theme_primaryContainer">#87FD9A</color>
+    <color name="md_theme_onPrimaryContainer">#002107</color>
+
+    <color name="md_theme_secondary">#52634F</color>
+    <color name="md_theme_onSecondary">#FFFFFF</color>
+    <color name="md_theme_secondaryContainer">#D5E8CF</color>
+    <color name="md_theme_onSecondaryContainer">#111F0F</color>
+
+    <color name="md_theme_tertiary">#38656A</color>
+    <color name="md_theme_onTertiary">#FFFFFF</color>
+    <color name="md_theme_tertiaryContainer">#BCEBF0</color>
+    <color name="md_theme_onTertiaryContainer">#002023</color>
+
+    <color name="md_theme_error">#BA1A1A</color>
+    <color name="md_theme_onError">#FFFFFF</color>
+    <color name="md_theme_errorContainer">#FFDAD6</color>
+    <color name="md_theme_onErrorContainer">#410002</color>
+
+    <color name="md_theme_background">#FCFDF6</color>
+    <color name="md_theme_onBackground">#1A1C19</color>
+    <color name="md_theme_surface">#FCFDF6</color>
+    <color name="md_theme_onSurface">#1A1C19</color>
+    <color name="md_theme_surfaceVariant">#DEE5D8</color>
+    <color name="md_theme_onSurfaceVariant">#424940</color>
+
+    <color name="md_theme_outline">#72796F</color>
+    <color name="md_theme_outlineVariant">#C2C9BD</color>
+
     <color name="terminal_background">#FF000000</color>
 </resources>

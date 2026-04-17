@@ -65,11 +65,11 @@ class MainActivity : AppCompatActivity() {
         val pubKey = keyManager.getPublicKey()
         if (pubKey != null) {
             binding.textPublicKey.text = pubKey
-            binding.textPublicKey.visibility = View.VISIBLE
+            binding.cardPublicKey.visibility = View.VISIBLE
             binding.btnCopyKey.visibility = View.VISIBLE
         } else {
             binding.textPublicKey.text = ""
-            binding.textPublicKey.visibility = View.GONE
+            binding.cardPublicKey.visibility = View.GONE
             binding.btnCopyKey.visibility = View.GONE
         }
     }

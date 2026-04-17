@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">DroidConnect</string>
+    <string name="section_connection">Connection</string>
+    <string name="section_ssh_key">SSH Key</string>
     <string name="connect">Connect</string>
     <string name="generate_key">Generate Key</string>
     <string name="host">Host</string>

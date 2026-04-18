@@ -1,5 +1,6 @@
 package org.hogel.droidconnect.ui
 
+import android.content.Context
 import android.graphics.Typeface
 import android.os.Bundle
 import android.util.Log
@@ -7,6 +8,7 @@ import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import org.hogel.droidconnect.R
@@ -74,6 +76,21 @@ class TerminalActivity : AppCompatActivity() {
         )
         terminalView.attachSession(dummySession)
         terminalView.setTerminalViewClient(viewClient)
+
+        // TerminalView must be focused to receive key events from physical
+        // keyboards and to host an InputConnection for the soft keyboard.
+        terminalView.requestFocus()
+        terminalView.post { showSoftKeyboard() }
+    }
+
+    private fun showSoftKeyboard() {
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.showSoftInput(binding.terminalView, InputMethodManager.SHOW_IMPLICIT)
+    }
+
+    private fun toggleSoftKeyboard() {
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.toggleSoftInput(InputMethodManager.SHOW_IMPLICIT, 0)
     }
 
     private fun connectSsh(host: String, port: Int, username: String, privateKey: CharArray) {
@@ -215,7 +232,12 @@ class TerminalActivity : AppCompatActivity() {
     // Key input is intercepted here and sent to SSH instead of the dummy TerminalSession.
     private val viewClient = object : TerminalViewClient {
         override fun onScale(scale: Float): Float = 1.0f
-        override fun onSingleTapUp(e: MotionEvent?) {}
+        override fun onSingleTapUp(e: MotionEvent?) {
+            // Tapping the terminal toggles the soft keyboard so it can be
+            // re-summoned after the user dismisses it with the back gesture.
+            binding.terminalView.requestFocus()
+            toggleSoftKeyboard()
+        }
         override fun shouldBackButtonBeMappedToEscape(): Boolean = true
         override fun shouldEnforceCharBasedInput(): Boolean = true
         override fun shouldUseCtrlSpaceWorkaround(): Boolean = false

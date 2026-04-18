@@ -243,16 +243,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updatePublicKeyDisplay() {
-        val pubKey = keyManager.getPublicKey()
-        if (pubKey != null) {
-            binding.textPublicKey.text = pubKey
-            binding.cardPublicKey.visibility = View.VISIBLE
-            binding.btnCopyKey.visibility = View.VISIBLE
-        } else {
-            binding.textPublicKey.text = ""
-            binding.cardPublicKey.visibility = View.GONE
-            binding.btnCopyKey.visibility = View.GONE
-        }
+        val hasKey = keyManager.getPublicKey() != null
+        binding.btnCopyKey.visibility = if (hasKey) View.VISIBLE else View.GONE
     }
 
     companion object {

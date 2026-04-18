@@ -16,12 +16,6 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          # Check out the PR head commit instead of the default
-          # refs/pull/N/merge ref. The merge ref points at a throwaway merge
-          # commit, so `git rev-parse HEAD` at Gradle configuration time
-          # resolves to that merge SHA rather than the PR head -- which means
-          # BuildConfig.GIT_SHORT_REV (shown in the app footer) never matches
-          # the SHA advertised in the release title/APK filename/PR comment.
           ref: ${{ github.event.pull_request.head.sha }}
           submodules: recursive
 

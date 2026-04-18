@@ -143,7 +143,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           SHORT_SHA="${HEAD_SHA:0:7}"
-          curl -sSfL \
+          curl -sSL --fail-with-body \
             -H "Authorization: Bearer ${DEPLOYGATE_API_KEY}" \
             -F "file=@app/build/outputs/apk/debug/app-debug.apk" \
             --form-string "message=PR #${PR_NUMBER} ${SHORT_SHA}" \

@@ -208,8 +208,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun refreshCommandDropdown() {
-        val history = loadCommandHistory()
-        val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, history)
+        val items = loadCommandHistory() + ""
+        val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, items)
         binding.editPostConnectCommand.setAdapter(adapter)
     }
 

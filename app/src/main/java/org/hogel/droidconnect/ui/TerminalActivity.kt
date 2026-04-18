@@ -24,6 +24,7 @@ import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
 import com.termux.view.TerminalViewClient
 import java.io.OutputStream
+import java.util.concurrent.Executors
 import kotlin.concurrent.thread
 
 /**
@@ -40,6 +41,13 @@ class TerminalActivity : AppCompatActivity() {
     private var sshSession: SshSession? = null
     private var sshOutputStream: OutputStream? = null
     @Volatile private var running = false
+
+    // A single-thread executor serializes writes to sshOutputStream so that
+    // characters emitted in rapid succession (e.g. when the IME commits a
+    // suggestion one code point at a time) reach the remote shell in order.
+    private val sshWriteExecutor = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "ssh-write").apply { isDaemon = true }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -196,7 +204,7 @@ class TerminalActivity : AppCompatActivity() {
 
     private fun writeToSsh(data: ByteArray) {
         val out = sshOutputStream ?: return
-        thread(name = "ssh-write") {
+        sshWriteExecutor.execute {
             try {
                 out.write(data)
                 out.flush()
@@ -257,6 +265,7 @@ class TerminalActivity : AppCompatActivity() {
         running = false
         sshSession?.disconnect()
         binding.terminalView.mTermSession?.finishIfRunning()
+        sshWriteExecutor.shutdownNow()
         super.onDestroy()
     }
 
@@ -299,7 +308,10 @@ class TerminalActivity : AppCompatActivity() {
         override fun shouldBackButtonBeMappedToEscape(): Boolean = true
         override fun shouldEnforceCharBasedInput(): Boolean = true
         override fun shouldUseCtrlSpaceWorkaround(): Boolean = false
-        override fun isTerminalViewSelected(): Boolean = true
+        // Route TerminalView.onCreateInputConnection() into its
+        // TYPE_CLASS_TEXT | TYPE_TEXT_VARIATION_NORMAL branch so the IME can
+        // run composition (Japanese kana-to-kanji) and show word suggestions.
+        override fun isTerminalViewSelected(): Boolean = false
         override fun copyModeChanged(copyMode: Boolean) {}
         override fun onKeyUp(keyCode: Int, e: KeyEvent?): Boolean = false
         override fun onLongPress(event: MotionEvent?): Boolean = false

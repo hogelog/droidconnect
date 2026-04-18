@@ -82,26 +82,36 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, R.string.public_key_copied, Toast.LENGTH_SHORT).show()
         }
 
-        binding.btnDisconnectStatus.setOnClickListener {
-            service?.shutdown()
-        }
-
         binding.btnConnect.setOnClickListener {
-            val host = binding.editHost.text.toString().trim()
-            val portStr = binding.editPort.text.toString().trim()
-            val username = binding.editUsername.text.toString().trim()
-
-            if (host.isEmpty() || username.isEmpty()) return@setOnClickListener
-
-            val port = portStr.toIntOrNull() ?: 22
-
-            val intent = Intent(this, TerminalActivity::class.java).apply {
-                putExtra(TerminalActivity.EXTRA_HOST, host)
-                putExtra(TerminalActivity.EXTRA_PORT, port)
-                putExtra(TerminalActivity.EXTRA_USERNAME, username)
+            if (isSessionActive()) {
+                service?.shutdown()
+            } else {
+                startConnection()
             }
-            startActivity(intent)
         }
+    }
+
+    private fun isSessionActive(): Boolean = when (service?.state) {
+        SshConnectionService.State.CONNECTING,
+        SshConnectionService.State.CONNECTED -> true
+        else -> false
+    }
+
+    private fun startConnection() {
+        val host = binding.editHost.text.toString().trim()
+        val portStr = binding.editPort.text.toString().trim()
+        val username = binding.editUsername.text.toString().trim()
+
+        if (host.isEmpty() || username.isEmpty()) return
+
+        val port = portStr.toIntOrNull() ?: 22
+
+        val intent = Intent(this, TerminalActivity::class.java).apply {
+            putExtra(TerminalActivity.EXTRA_HOST, host)
+            putExtra(TerminalActivity.EXTRA_PORT, port)
+            putExtra(TerminalActivity.EXTRA_USERNAME, username)
+        }
+        startActivity(intent)
     }
 
     override fun onStart() {
@@ -137,14 +147,17 @@ class MainActivity : AppCompatActivity() {
                 binding.textConnectionStatus.text =
                     getString(R.string.status_connecting_to, svc?.connectionLabel ?: "")
                 binding.cardConnectionStatus.visibility = View.VISIBLE
+                binding.btnConnect.setText(R.string.disconnect)
             }
             SshConnectionService.State.CONNECTED -> {
                 binding.textConnectionStatus.text =
                     getString(R.string.status_connected_to, svc?.connectionLabel ?: "")
                 binding.cardConnectionStatus.visibility = View.VISIBLE
+                binding.btnConnect.setText(R.string.disconnect)
             }
             else -> {
                 binding.cardConnectionStatus.visibility = View.GONE
+                binding.btnConnect.setText(R.string.connect)
             }
         }
     }

@@ -19,6 +19,8 @@ import org.hogel.droidconnect.ui.TerminalActivity
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
 /**
@@ -64,6 +66,11 @@ class SshConnectionService : Service() {
     private val sshWriteExecutor = Executors.newSingleThreadExecutor { r ->
         Thread(r, "ssh-write").apply { isDaemon = true }
     }
+
+    private val keepaliveExecutor = Executors.newSingleThreadScheduledExecutor { r ->
+        Thread(r, "ssh-keepalive").apply { isDaemon = true }
+    }
+    private var keepaliveTask: ScheduledFuture<*>? = null
 
     override fun onBind(intent: Intent?): IBinder = binder
 
@@ -111,6 +118,7 @@ class SshConnectionService : Service() {
             session = ssh
             state = State.CONNECTED
             updateNotification(getString(R.string.notification_text_connected, connectionLabel))
+            startKeepalive(ssh)
             notifyStatus { it.onSshConnected() }
 
             val buffer = ByteArray(8192)
@@ -124,6 +132,7 @@ class SshConnectionService : Service() {
             caught = e
             Log.e(TAG, "SSH session error", e)
         } finally {
+            stopKeepalive()
             runCatching { session?.disconnect() }
             session = null
             lastError = caught
@@ -132,6 +141,24 @@ class SshConnectionService : Service() {
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
             stopSelf()
         }
+    }
+
+    private fun startKeepalive(ssh: SshSession) {
+        // OpenSSH's `ServerAliveInterval 120` equivalent: an SSH_MSG_IGNORE
+        // every 120s keeps NAT/firewall mappings warm. A failure here means
+        // the link is dead; the read loop will then unblock with EOF.
+        keepaliveTask = keepaliveExecutor.scheduleWithFixedDelay({
+            try {
+                ssh.sendKeepalive()
+            } catch (e: Exception) {
+                Log.w(TAG, "SSH keepalive failed", e)
+            }
+        }, KEEPALIVE_INTERVAL_SECONDS, KEEPALIVE_INTERVAL_SECONDS, TimeUnit.SECONDS)
+    }
+
+    private fun stopKeepalive() {
+        keepaliveTask?.cancel(false)
+        keepaliveTask = null
     }
 
     private fun deliverOutput(data: ByteArray) {
@@ -222,6 +249,7 @@ class SshConnectionService : Service() {
 
     override fun onDestroy() {
         sshWriteExecutor.shutdownNow()
+        keepaliveExecutor.shutdownNow()
         super.onDestroy()
     }
 
@@ -298,6 +326,7 @@ class SshConnectionService : Service() {
         private const val CHANNEL_ID = "ssh_connection"
         private const val NOTIFICATION_ID = 1001
         private const val MAX_BUFFER_BYTES = 256 * 1024
+        private const val KEEPALIVE_INTERVAL_SECONDS = 120L
         private const val TAG = "SshConnectionService"
     }
 }

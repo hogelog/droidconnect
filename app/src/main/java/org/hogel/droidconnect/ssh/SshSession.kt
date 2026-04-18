@@ -51,6 +51,11 @@ class SshSession(
         session?.resizePTY(columns, rows, 0, 0)
     }
 
+    /** Send an SSH_MSG_IGNORE packet to keep NAT/firewall mappings warm. */
+    fun sendKeepalive() {
+        connection?.sendIgnorePacket()
+    }
+
     fun disconnect() {
         isConnected = false
         try { session?.close() } catch (_: Exception) {}

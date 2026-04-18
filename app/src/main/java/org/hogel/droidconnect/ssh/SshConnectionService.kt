@@ -55,7 +55,10 @@ class SshConnectionService : Service() {
 
     private var session: SshSession? = null
     private var readThread: Thread? = null
-    private var connectionLabel: String = ""
+
+    @Volatile
+    var connectionLabel: String = ""
+        private set
 
     private val outputLock = Any()
     private val pendingOutput = ByteArrayOutputStream()

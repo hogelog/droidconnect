@@ -82,9 +82,25 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, R.string.public_key_copied, Toast.LENGTH_SHORT).show()
         }
 
-        binding.btnConnect.setOnClickListener { startConnection() }
+        binding.btnConnect.setOnClickListener {
+            if (isSessionActive()) {
+                resumeTerminal()
+            } else {
+                startConnection()
+            }
+        }
 
         binding.btnMainDisconnect.setOnClickListener { service?.shutdown() }
+    }
+
+    private fun isSessionActive(): Boolean = when (service?.state) {
+        SshConnectionService.State.CONNECTING,
+        SshConnectionService.State.CONNECTED -> true
+        else -> false
+    }
+
+    private fun resumeTerminal() {
+        startActivity(Intent(this, TerminalActivity::class.java))
     }
 
     private fun startConnection() {

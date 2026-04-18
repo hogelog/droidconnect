@@ -2,11 +2,14 @@ package org.hogel.droidconnect
 
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.edit
 import org.hogel.droidconnect.databinding.ActivityMainBinding
 import org.hogel.droidconnect.ssh.SshKeyManager
 import org.hogel.droidconnect.ui.TerminalActivity
@@ -15,6 +18,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var keyManager: SshKeyManager
+    private lateinit var prefs: SharedPreferences
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -24,6 +28,9 @@ class MainActivity : AppCompatActivity() {
         binding.textVersion.text = "${BuildConfig.VERSION_NAME}-${BuildConfig.GIT_SHORT_REV}"
 
         keyManager = SshKeyManager(this)
+        prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+        restoreConnectionInput()
 
         // Show existing public key if available
         updatePublicKeyDisplay()
@@ -63,6 +70,25 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onPause() {
+        super.onPause()
+        saveConnectionInput()
+    }
+
+    private fun restoreConnectionInput() {
+        prefs.getString(KEY_HOST, null)?.let { binding.editHost.setText(it) }
+        prefs.getString(KEY_PORT, null)?.let { binding.editPort.setText(it) }
+        prefs.getString(KEY_USERNAME, null)?.let { binding.editUsername.setText(it) }
+    }
+
+    private fun saveConnectionInput() {
+        prefs.edit {
+            putString(KEY_HOST, binding.editHost.text.toString())
+            putString(KEY_PORT, binding.editPort.text.toString())
+            putString(KEY_USERNAME, binding.editUsername.text.toString())
+        }
+    }
+
     private fun updatePublicKeyDisplay() {
         val pubKey = keyManager.getPublicKey()
         if (pubKey != null) {
@@ -74,5 +100,12 @@ class MainActivity : AppCompatActivity() {
             binding.cardPublicKey.visibility = View.GONE
             binding.btnCopyKey.visibility = View.GONE
         }
+    }
+
+    companion object {
+        private const val PREFS_NAME = "connection"
+        private const val KEY_HOST = "host"
+        private const val KEY_PORT = "port"
+        private const val KEY_USERNAME = "username"
     }
 }

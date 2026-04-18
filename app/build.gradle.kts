@@ -1,7 +1,27 @@
+import java.io.ByteArrayOutputStream
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("io.sentry.android.gradle")
+}
+
+// Resolve the short git SHA at configuration time and embed it into
+// BuildConfig so the app can show a `<versionName>-<shortrev>` footer.
+// Falls back to "unknown" if git is unavailable (e.g. source archive builds).
+val gitShortRev: String = run {
+    val stdout = ByteArrayOutputStream()
+    try {
+        exec {
+            commandLine("git", "rev-parse", "--short", "HEAD")
+            standardOutput = stdout
+            errorOutput = ByteArrayOutputStream()
+            isIgnoreExitValue = true
+        }
+        stdout.toString().trim().ifEmpty { "unknown" }
+    } catch (_: Exception) {
+        "unknown"
+    }
 }
 
 // Lock only the user-facing classpaths that actually ship in the APK and
@@ -34,6 +54,8 @@ android {
         // placeholder expands to an empty string and Sentry auto-init becomes
         // a no-op -- the SDK detects the empty DSN and skips initialization.
         manifestPlaceholders["sentryDsn"] = System.getenv("SENTRY_DSN") ?: ""
+
+        buildConfigField("String", "GIT_SHORT_REV", "\"$gitShortRev\"")
     }
 
     // Use a committed debug keystore so CI builds across PRs share the same
@@ -58,6 +80,7 @@ android {
 
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 
     compileOptions {

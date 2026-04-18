@@ -21,6 +21,8 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        binding.textVersion.text = "${BuildConfig.VERSION_NAME}-${BuildConfig.GIT_SHORT_REV}"
+
         keyManager = SshKeyManager(this)
 
         // Show existing public key if available

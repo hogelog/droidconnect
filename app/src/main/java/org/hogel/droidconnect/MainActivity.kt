@@ -12,6 +12,7 @@ import android.os.IBinder
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.edit
 import org.hogel.droidconnect.databinding.ActivityMainBinding
@@ -69,12 +70,10 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnGenerateKey.setOnClickListener {
             if (keyManager.hasKey()) {
-                Toast.makeText(this, R.string.key_already_exists, Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
+                confirmOverwriteAndGenerateKey()
+            } else {
+                generateKey()
             }
-            keyManager.generateKey()
-            Toast.makeText(this, R.string.key_generated, Toast.LENGTH_SHORT).show()
-            updatePublicKeyDisplay()
         }
 
         binding.btnCopyKey.setOnClickListener {
@@ -226,6 +225,21 @@ class MainActivity : AppCompatActivity() {
         while (current.size > MAX_COMMAND_HISTORY) current.removeAt(current.size - 1)
         prefs.edit { putString(KEY_COMMAND_HISTORY, current.joinToString("\n")) }
         refreshCommandDropdown()
+    }
+
+    private fun confirmOverwriteAndGenerateKey() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.key_overwrite_title)
+            .setMessage(R.string.key_overwrite_message)
+            .setPositiveButton(R.string.key_overwrite_confirm) { _, _ -> generateKey() }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun generateKey() {
+        keyManager.generateKey()
+        Toast.makeText(this, R.string.key_generated, Toast.LENGTH_SHORT).show()
+        updatePublicKeyDisplay()
     }
 
     private fun updatePublicKeyDisplay() {

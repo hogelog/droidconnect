@@ -16,7 +16,9 @@
     <string name="public_key">Public Key</string>
     <string name="copy_public_key">Copy Public Key</string>
     <string name="key_generated">Ed25519 key generated</string>
-    <string name="key_already_exists">Key already exists</string>
+    <string name="key_overwrite_title">Overwrite existing key?</string>
+    <string name="key_overwrite_message">An SSH key already exists. Generating a new key will overwrite it, and any servers authorized with the current public key will no longer accept connections.</string>
+    <string name="key_overwrite_confirm">Overwrite</string>
     <string name="public_key_copied">Public key copied to clipboard</string>
     <string name="connecting">Connecting…</string>
     <string name="connection_failed">Connection failed</string>

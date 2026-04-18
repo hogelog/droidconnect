@@ -39,11 +39,20 @@ class SshSession(
         isConnected = true
     }
 
-    fun openShell(columns: Int, rows: Int) {
+    /**
+     * Open an interactive session. When [command] is null or blank, starts a
+     * login shell. Otherwise runs [command] with a PTY attached (equivalent to
+     * `ssh -t host 'command'`); when the command exits, the session closes.
+     */
+    fun openShell(columns: Int, rows: Int, command: String? = null) {
         val conn = connection ?: throw IllegalStateException("Not connected")
         val sess = conn.openSession()
         sess.requestPTY("xterm-256color", columns, rows, 0, 0, null)
-        sess.startShell()
+        if (command.isNullOrBlank()) {
+            sess.startShell()
+        } else {
+            sess.execCommand(command)
+        }
         session = sess
     }
 

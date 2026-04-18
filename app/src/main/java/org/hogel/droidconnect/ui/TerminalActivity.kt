@@ -121,12 +121,15 @@ class TerminalActivity : AppCompatActivity() {
         val host = intent.getStringExtra(EXTRA_HOST)
         val username = intent.getStringExtra(EXTRA_USERNAME)
         val port = intent.getIntExtra(EXTRA_PORT, 22)
+        val command = intent.getStringExtra(EXTRA_POST_CONNECT_COMMAND)?.takeIf { it.isNotBlank() }
         if (host != null && username != null) {
             val privateKey = SshKeyManager(this).getPrivateKeyPem() ?: run {
                 Toast.makeText(this, "No SSH key found", Toast.LENGTH_SHORT).show()
                 return finish()
             }
-            pendingParams = SshConnectionService.ConnectionParams(host, port, username, privateKey)
+            pendingParams = SshConnectionService.ConnectionParams(
+                host, port, username, privateKey, command,
+            )
         }
 
         setupTerminalView()
@@ -449,6 +452,7 @@ class TerminalActivity : AppCompatActivity() {
         const val EXTRA_HOST = "host"
         const val EXTRA_PORT = "port"
         const val EXTRA_USERNAME = "username"
+        const val EXTRA_POST_CONNECT_COMMAND = "post_connect_command"
         private const val DEFAULT_COLUMNS = 80
         private const val DEFAULT_ROWS = 24
         private const val TAG = "TerminalActivity"

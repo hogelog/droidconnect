@@ -39,11 +39,22 @@ class SshSession(
         isConnected = true
     }
 
-    fun openShell(columns: Int, rows: Int) {
+    /**
+     * Open an interactive session. With no [initialCommand], starts a normal
+     * login shell. Otherwise runs the command via `bash -lc` on the remote
+     * so ~/.profile / ~/.bashrc are sourced (PATH, aliases, nvm, etc. are
+     * available). When the command exits, the session closes.
+     */
+    fun openShell(columns: Int, rows: Int, initialCommand: String? = null) {
         val conn = connection ?: throw IllegalStateException("Not connected")
         val sess = conn.openSession()
         sess.requestPTY("xterm-256color", columns, rows, 0, 0, null)
-        sess.startShell()
+        if (initialCommand.isNullOrBlank()) {
+            sess.startShell()
+        } else {
+            val escaped = initialCommand.replace("'", "'\\''")
+            sess.execCommand("bash -lc '$escaped'")
+        }
         session = sess
     }
 

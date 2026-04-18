@@ -119,7 +119,7 @@ class SshConnectionService : Service() {
         try {
             val ssh = SshSession(params.host, params.port, params.username, params.privateKey)
             ssh.connect()
-            ssh.openShell(columns.coerceAtLeast(1), rows.coerceAtLeast(1))
+            ssh.openShell(columns.coerceAtLeast(1), rows.coerceAtLeast(1), params.command)
             session = ssh
             state = State.CONNECTED
             updateNotification(getString(R.string.notification_text_connected, connectionLabel))
@@ -305,6 +305,7 @@ class SshConnectionService : Service() {
         val port: Int,
         val username: String,
         val privateKey: CharArray,
+        val command: String? = null,
     ) {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
@@ -312,7 +313,8 @@ class SshConnectionService : Service() {
             return host == other.host &&
                 port == other.port &&
                 username == other.username &&
-                privateKey.contentEquals(other.privateKey)
+                privateKey.contentEquals(other.privateKey) &&
+                command == other.command
         }
 
         override fun hashCode(): Int {
@@ -320,6 +322,7 @@ class SshConnectionService : Service() {
             result = 31 * result + port
             result = 31 * result + username.hashCode()
             result = 31 * result + privateKey.contentHashCode()
+            result = 31 * result + (command?.hashCode() ?: 0)
             return result
         }
     }

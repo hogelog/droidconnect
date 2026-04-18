@@ -92,7 +92,6 @@ class TerminalActivity : AppCompatActivity() {
                 ssh.openShell(columns, rows)
                 sshOutputStream = ssh.stdin
 
-                // Read SSH stdout and feed to terminal emulator
                 val buffer = ByteArray(8192)
                 val inputStream = ssh.stdout
                 while (running) {
@@ -120,7 +119,6 @@ class TerminalActivity : AppCompatActivity() {
         }
     }
 
-    /** Write raw bytes to SSH channel (background thread). */
     private fun writeToSsh(data: ByteArray) {
         val out = sshOutputStream ?: return
         thread(name = "ssh-write") {
@@ -133,7 +131,6 @@ class TerminalActivity : AppCompatActivity() {
         }
     }
 
-    /** Encode a Unicode code point as UTF-8 and write to SSH. */
     private fun writeCodePointToSsh(codePoint: Int, prependEscape: Boolean) {
         val buf = ByteArray(5)
         var pos = 0
@@ -252,7 +249,6 @@ class TerminalActivity : AppCompatActivity() {
             val leftAltDown = (metaState and KeyEvent.META_ALT_LEFT_ON) != 0
             val shiftDown = event.isShiftPressed
 
-            // Special keys: arrows, function keys, etc.
             var keyMod = 0
             if (controlDown) keyMod = keyMod or KeyHandler.KEYMOD_CTRL
             if (event.isAltPressed || leftAltDown) keyMod = keyMod or KeyHandler.KEYMOD_ALT
@@ -271,7 +267,6 @@ class TerminalActivity : AppCompatActivity() {
                 }
             }
 
-            // Regular character keys
             val rightAltDown = (metaState and KeyEvent.META_ALT_RIGHT_ON) != 0
             var bitsToClear = KeyEvent.META_CTRL_MASK
             if (!rightAltDown) {

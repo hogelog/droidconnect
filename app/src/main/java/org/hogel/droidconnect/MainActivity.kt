@@ -32,7 +32,6 @@ class MainActivity : AppCompatActivity() {
 
         restoreConnectionInput()
 
-        // Show existing public key if available
         updatePublicKeyDisplay()
 
         binding.btnGenerateKey.setOnClickListener {

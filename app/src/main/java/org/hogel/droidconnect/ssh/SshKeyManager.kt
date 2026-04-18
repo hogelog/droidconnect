@@ -10,10 +10,7 @@ import java.security.KeyPairGenerator
 import java.security.SecureRandom
 import java.util.Base64
 
-/**
- * Manages Ed25519 SSH key pair generation and storage.
- * Keys are stored as files in the app's private directory.
- */
+/** Ed25519 SSH key pair stored under the app's private files dir. */
 class SshKeyManager(context: Context) {
 
     private val keyDir = File(context.filesDir, "ssh_keys").also { it.mkdirs() }
@@ -22,10 +19,7 @@ class SshKeyManager(context: Context) {
 
     fun hasKey(): Boolean = privateKeyFile.exists() && publicKeyFile.exists()
 
-    /**
-     * Generate a new Ed25519 key pair and save to app-private storage.
-     * Returns the public key in OpenSSH format.
-     */
+    /** Generates and persists a new key pair. Returns the OpenSSH-formatted public key. */
     fun generateKey(): String {
         val kpg = KeyPairGenerator.getInstance(Ed25519Provider.KEY_ALGORITHM, Ed25519Provider())
         val keyPair = kpg.generateKeyPair()
@@ -41,13 +35,11 @@ class SshKeyManager(context: Context) {
         return pubKeyOpenSsh
     }
 
-    /** Get the public key in OpenSSH format, or null if no key exists. */
     fun getPublicKey(): String? {
         if (!publicKeyFile.exists()) return null
         return publicKeyFile.readText().trim()
     }
 
-    /** Get the private key PEM content for SSH authentication. */
     fun getPrivateKeyPem(): CharArray? {
         if (!privateKeyFile.exists()) return null
         return privateKeyFile.readText().toCharArray()

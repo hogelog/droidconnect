@@ -6,7 +6,6 @@ import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.interfaces.EdECPrivateKey
 import java.security.interfaces.EdECPublicKey
-import java.security.spec.NamedParameterSpec
 import java.util.Base64
 
 /**
@@ -26,8 +25,7 @@ class SshKeyManager(context: Context) {
      * Returns the public key in OpenSSH format.
      */
     fun generateKey(): String {
-        val kpg = KeyPairGenerator.getInstance("Ed25519")
-        kpg.initialize(NamedParameterSpec.ED25519)
+        val kpg = KeyPairGenerator.getInstance("Ed25519", "AndroidOpenSSL")
         val keyPair = kpg.generateKeyPair()
 
         // Save private key in PKCS#8 PEM format

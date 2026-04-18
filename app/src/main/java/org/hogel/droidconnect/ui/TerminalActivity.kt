@@ -187,7 +187,7 @@ class TerminalActivity : AppCompatActivity() {
                 minHeight = minHeightPx
                 minimumHeight = minHeightPx
                 setPadding(dpToPx(8), 0, dpToPx(8), 0)
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
                 isFocusable = false
                 setOnClickListener {
                     action()
@@ -215,7 +215,7 @@ class TerminalActivity : AppCompatActivity() {
 
     private fun setupTerminalView() {
         val terminalView = binding.terminalView
-        terminalView.setTextSize(14)
+        terminalView.setTextSize(16)
         terminalView.setTypeface(Typeface.MONOSPACE)
 
         // Create a dummy TerminalSession to initialize TerminalView.

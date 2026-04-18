@@ -164,7 +164,7 @@
                     android:fontFamily="monospace"
                     android:textColor="?attr/colorOnSurfaceVariant"
                     android:textIsSelectable="true"
-                    android:textSize="12sp" />
+                    android:textSize="14sp" />
 
             </com.google.android.material.card.MaterialCardView>
 

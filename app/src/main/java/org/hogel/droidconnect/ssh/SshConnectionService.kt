@@ -25,9 +25,11 @@ import kotlin.concurrent.thread
 
 /**
  * Foreground service that owns the SSH session so the connection survives
- * the UI being backgrounded or destroyed. The bound activity attaches an
- * output listener; while no listener is attached, output bytes accumulate
- * in a bounded buffer and are replayed on the next attach.
+ * the UI being backgrounded or destroyed. A rolling buffer of all SSH
+ * output is kept (bounded by [MAX_BUFFER_BYTES]) and replayed to the
+ * listener on every attach, so a freshly recreated TerminalActivity can
+ * reconstruct the previous screen state by feeding the bytes back into
+ * the terminal emulator.
  */
 class SshConnectionService : Service() {
 
@@ -61,7 +63,7 @@ class SshConnectionService : Service() {
         private set
 
     private val outputLock = Any()
-    private val pendingOutput = ByteArrayOutputStream()
+    private val outputHistory = ByteArrayOutputStream()
     private var outputListener: ((ByteArray) -> Unit)? = null
 
     private val statusListeners = CopyOnWriteArrayList<StatusListener>()
@@ -167,16 +169,14 @@ class SshConnectionService : Service() {
     private fun deliverOutput(data: ByteArray) {
         val current: ((ByteArray) -> Unit)?
         synchronized(outputLock) {
-            current = outputListener
-            if (current == null) {
-                pendingOutput.write(data)
-                if (pendingOutput.size() > MAX_BUFFER_BYTES) {
-                    val all = pendingOutput.toByteArray()
-                    val keep = all.copyOfRange(all.size - MAX_BUFFER_BYTES, all.size)
-                    pendingOutput.reset()
-                    pendingOutput.write(keep)
-                }
+            outputHistory.write(data)
+            if (outputHistory.size() > MAX_BUFFER_BYTES) {
+                val all = outputHistory.toByteArray()
+                val keep = all.copyOfRange(all.size - MAX_BUFFER_BYTES, all.size)
+                outputHistory.reset()
+                outputHistory.write(keep)
             }
+            current = outputListener
         }
         current?.let { listener ->
             mainHandler.post { listener(data) }
@@ -184,14 +184,14 @@ class SshConnectionService : Service() {
     }
 
     /**
-     * Register an output listener. Any output buffered while no listener was
-     * attached is delivered on the main thread before this returns.
+     * Register an output listener. The full output history accumulated so
+     * far is delivered on the main thread as backlog; the history is not
+     * cleared so future attaches can replay it again.
      */
     fun attachOutputListener(listener: (ByteArray) -> Unit) {
         val backlog: ByteArray?
         synchronized(outputLock) {
-            backlog = if (pendingOutput.size() > 0) pendingOutput.toByteArray() else null
-            pendingOutput.reset()
+            backlog = if (outputHistory.size() > 0) outputHistory.toByteArray() else null
             outputListener = listener
         }
         backlog?.let { mainHandler.post { listener(it) } }

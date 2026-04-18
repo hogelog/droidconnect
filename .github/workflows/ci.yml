@@ -38,6 +38,7 @@ jobs:
       - name: Build debug APK and run lint
         env:
           SENTRY_DSN: ${{ vars.SENTRY_DSN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: ./gradlew assembleDebug lint
 
       - name: Publish CI prerelease for PR

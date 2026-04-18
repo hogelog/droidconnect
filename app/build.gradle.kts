@@ -24,6 +24,14 @@ val gitShortRev: String = run {
     }
 }
 
+val prNumber: String? = System.getenv("PR_NUMBER")?.takeIf { it.isNotBlank() }
+val baseVersionName = "0.1.0"
+val appVersionName: String = if (prNumber != null) {
+    "$baseVersionName-pr-$prNumber-$gitShortRev"
+} else {
+    baseVersionName
+}
+
 // Lock only the user-facing classpaths that actually ship in the APK and
 // that compile against. Internal/metadata/test configurations (Kotlin
 // multiplatform metadata, AGP test platform, Kotlin compiler classpaths)
@@ -44,7 +52,7 @@ android {
         minSdk = 34
         targetSdk = 36
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = appVersionName
 
         // Sentry DSN is injected at build time from the SENTRY_DSN environment
         // variable (sourced from GitHub Actions `vars.SENTRY_DSN` in CI).

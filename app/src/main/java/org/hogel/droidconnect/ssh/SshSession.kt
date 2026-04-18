@@ -40,20 +40,22 @@ class SshSession(
     }
 
     /**
-     * Open an interactive session. When [command] is null or blank, starts a
-     * login shell. Otherwise runs [command] with a PTY attached (equivalent to
-     * `ssh -t host 'command'`); when the command exits, the session closes.
+     * Open an interactive login shell. If [initialCommand] is non-blank, it is
+     * typed into the shell via stdin once the session is up, so the user's
+     * usual PATH, aliases, and rc-file setup are in effect (this is the
+     * reason we don't use an `exec` channel for the command).
      */
-    fun openShell(columns: Int, rows: Int, command: String? = null) {
+    fun openShell(columns: Int, rows: Int, initialCommand: String? = null) {
         val conn = connection ?: throw IllegalStateException("Not connected")
         val sess = conn.openSession()
         sess.requestPTY("xterm-256color", columns, rows, 0, 0, null)
-        if (command.isNullOrBlank()) {
-            sess.startShell()
-        } else {
-            sess.execCommand(command)
-        }
+        sess.startShell()
         session = sess
+        if (!initialCommand.isNullOrBlank()) {
+            val payload = (initialCommand + "\n").toByteArray(Charsets.UTF_8)
+            sess.stdin.write(payload)
+            sess.stdin.flush()
+        }
     }
 
     fun resizeWindow(columns: Int, rows: Int) {

@@ -299,7 +299,10 @@ class TerminalActivity : AppCompatActivity() {
         override fun shouldBackButtonBeMappedToEscape(): Boolean = true
         override fun shouldEnforceCharBasedInput(): Boolean = true
         override fun shouldUseCtrlSpaceWorkaround(): Boolean = false
-        override fun isTerminalViewSelected(): Boolean = true
+        // Route TerminalView.onCreateInputConnection() into its
+        // TYPE_CLASS_TEXT | TYPE_TEXT_VARIATION_NORMAL branch so the IME can
+        // run composition (Japanese kana-to-kanji) and show word suggestions.
+        override fun isTerminalViewSelected(): Boolean = false
         override fun copyModeChanged(copyMode: Boolean) {}
         override fun onKeyUp(keyCode: Int, e: KeyEvent?): Boolean = false
         override fun onLongPress(event: MotionEvent?): Boolean = false

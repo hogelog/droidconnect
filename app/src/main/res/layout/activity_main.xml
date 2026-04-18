@@ -122,6 +122,8 @@
                 android:hint="@string/post_connect_command"
                 app:helperText="@string/post_connect_command_helper"
                 app:endIconMode="dropdown_menu"
+                app:startIconDrawable="@drawable/ic_add"
+                app:startIconContentDescription="@string/save_post_connect_command"
                 style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
 
                 <com.google.android.material.textfield.MaterialAutoCompleteTextView

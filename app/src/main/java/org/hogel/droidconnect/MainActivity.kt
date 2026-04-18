@@ -84,6 +84,10 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, R.string.public_key_copied, Toast.LENGTH_SHORT).show()
         }
 
+        binding.layoutPostConnectCommand.setStartIconOnClickListener {
+            saveCurrentCommand()
+        }
+
         binding.btnConnect.setOnClickListener {
             if (isSessionActive()) {
                 resumeTerminal()
@@ -93,6 +97,16 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.btnMainDisconnect.setOnClickListener { service?.shutdown() }
+    }
+
+    private fun saveCurrentCommand() {
+        val command = binding.editPostConnectCommand.text.toString().trim()
+        if (command.isEmpty()) {
+            Toast.makeText(this, R.string.post_connect_command_empty, Toast.LENGTH_SHORT).show()
+            return
+        }
+        rememberCommand(command)
+        Toast.makeText(this, R.string.post_connect_command_saved, Toast.LENGTH_SHORT).show()
     }
 
     private fun isSessionActive(): Boolean = when (service?.state) {

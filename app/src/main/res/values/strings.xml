@@ -10,6 +10,9 @@
     <string name="username">Username</string>
     <string name="post_connect_command">Post-connection command</string>
     <string name="post_connect_command_helper">Leave empty to start an interactive shell</string>
+    <string name="save_post_connect_command">Save command</string>
+    <string name="post_connect_command_saved">Command saved</string>
+    <string name="post_connect_command_empty">Enter a command to save</string>
     <string name="public_key">Public Key</string>
     <string name="copy_public_key">Copy Public Key</string>
     <string name="key_generated">Ed25519 key generated</string>

@@ -54,11 +54,6 @@ android {
         // placeholder expands to an empty string and Sentry auto-init becomes
         // a no-op -- the SDK detects the empty DSN and skips initialization.
         manifestPlaceholders["sentryDsn"] = System.getenv("SENTRY_DSN") ?: ""
-
-        // Tag Sentry events with release + dist so issues can be tracked per
-        // build. Release follows Sentry's Android convention
-        // (`applicationId@versionName+versionCode`); dist is the short git SHA
-        // so the exact commit behind any given versionCode is recoverable.
         manifestPlaceholders["sentryRelease"] = "$applicationId@$versionName+$versionCode"
         manifestPlaceholders["sentryDist"] = gitShortRev
 

@@ -19,11 +19,6 @@
              guidance and is intentionally stored in GitHub Actions vars,
              not secrets. -->
         <meta-data android:name="io.sentry.dsn" android:value="${sentryDsn}" />
-
-        <!-- Release and dist are populated from app/build.gradle.kts. Release
-             is `applicationId@versionName+versionCode`; dist is the short
-             git SHA, so Sentry issues can be traced back to a specific build
-             even when versionName/versionCode have not been bumped. -->
         <meta-data android:name="io.sentry.release" android:value="${sentryRelease}" />
         <meta-data android:name="io.sentry.dist" android:value="${sentryDist}" />
 

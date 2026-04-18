@@ -77,8 +77,11 @@ class TerminalActivity : AppCompatActivity() {
         terminalView.attachSession(dummySession)
         terminalView.setTerminalViewClient(viewClient)
 
-        // TerminalView must be focused to receive key events from physical
-        // keyboards and to host an InputConnection for the soft keyboard.
+        // Termux's TerminalView does not set these flags itself, so requestFocus
+        // silently fails and the IME has no view to deliver input to — keyboard
+        // shows but typed characters go nowhere. Enable focus before requesting.
+        terminalView.isFocusable = true
+        terminalView.isFocusableInTouchMode = true
         terminalView.requestFocus()
         terminalView.post { showSoftKeyboard() }
     }

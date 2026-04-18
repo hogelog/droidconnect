@@ -54,6 +54,8 @@ android {
         // placeholder expands to an empty string and Sentry auto-init becomes
         // a no-op -- the SDK detects the empty DSN and skips initialization.
         manifestPlaceholders["sentryDsn"] = System.getenv("SENTRY_DSN") ?: ""
+        manifestPlaceholders["sentryRelease"] = "$applicationId@$versionName+$versionCode"
+        manifestPlaceholders["sentryDist"] = gitShortRev
 
         buildConfigField("String", "GIT_SHORT_REV", "\"$gitShortRev\"")
     }

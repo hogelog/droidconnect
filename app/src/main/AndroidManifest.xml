@@ -19,6 +19,8 @@
              guidance and is intentionally stored in GitHub Actions vars,
              not secrets. -->
         <meta-data android:name="io.sentry.dsn" android:value="${sentryDsn}" />
+        <meta-data android:name="io.sentry.release" android:value="${sentryRelease}" />
+        <meta-data android:name="io.sentry.dist" android:value="${sentryDist}" />
 
         <activity
             android:name=".MainActivity"

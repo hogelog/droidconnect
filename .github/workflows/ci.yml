@@ -17,7 +17,23 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-          submodules: recursive
+
+      - name: Compute submodule cache key
+        id: submodule-key
+        run: |
+          paths=$(git config -f .gitmodules --get-regexp path | awk '{print $2}')
+          hash=$(git ls-tree HEAD -- $paths | sha256sum | awk '{print $1}')
+          echo "hash=$hash" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        id: submodule-cache
+        with:
+          path: vendor
+          key: submodules-v1-${{ hashFiles('.gitmodules') }}-${{ steps.submodule-key.outputs.hash }}
+
+      - name: Initialize submodules
+        if: steps.submodule-cache.outputs.cache-hit != 'true'
+        run: git submodule update --init --recursive
 
       - uses: actions/setup-java@v5
         with:

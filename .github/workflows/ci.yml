@@ -144,7 +144,7 @@ jobs:
         run: |
           SHORT_SHA="${HEAD_SHA:0:7}"
           curl -sSfL \
-            -F "token=${DEPLOYGATE_API_KEY}" \
+            -H "Authorization: Bearer ${DEPLOYGATE_API_KEY}" \
             -F "file=@app/build/outputs/apk/debug/app-debug.apk" \
-            -F "message=PR #${PR_NUMBER} ${SHORT_SHA}" \
+            --form-string "message=PR #${PR_NUMBER} ${SHORT_SHA}" \
             "https://deploygate.com/api/users/${DEPLOYGATE_USER_NAME}/apps"

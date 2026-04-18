@@ -202,13 +202,22 @@ class SshConnectionService : Service() {
     }
 
     fun resizeWindow(columns: Int, rows: Int) {
-        session?.resizeWindow(columns, rows)
+        // resize sends a packet, so it must not run on the main thread.
+        runCatching {
+            sshWriteExecutor.execute {
+                runCatching { session?.resizeWindow(columns, rows) }
+            }
+        }
     }
 
     /** Tear down the SSH connection; the service will stop itself. */
     fun shutdown() {
-        runCatching { session?.disconnect() }
-        // The read loop will break out of read() and run its finally block.
+        // disconnect() sends an SSH-level message and must not run on the
+        // main thread. Use a dedicated thread so a stuck writer can't delay
+        // the teardown. The read loop will then exit and run its finally.
+        Thread({ runCatching { session?.disconnect() } }, "ssh-shutdown")
+            .apply { isDaemon = true }
+            .start()
     }
 
     override fun onDestroy() {

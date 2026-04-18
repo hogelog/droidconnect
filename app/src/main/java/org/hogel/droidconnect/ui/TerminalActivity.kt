@@ -4,11 +4,14 @@ import android.content.Context
 import android.graphics.Typeface
 import android.os.Bundle
 import android.util.Log
+import android.util.TypedValue
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
+import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import org.hogel.droidconnect.R
@@ -56,8 +59,60 @@ class TerminalActivity : AppCompatActivity() {
         }
 
         setupTerminalView()
+        setupAuxKeyBar()
         connectSsh(host, port, username, privateKey)
     }
+
+    private fun setupAuxKeyBar() {
+        val bar = binding.auxKeyBar
+        val keys: List<Pair<String, () -> Unit>> = listOf(
+            "ESC" to { writeToSsh(byteArrayOf(0x1B)) },
+            "TAB" to { writeToSsh(byteArrayOf(0x09)) },
+            "^C" to { writeToSsh(byteArrayOf(0x03)) },
+            "^D" to { writeToSsh(byteArrayOf(0x04)) },
+            "^J" to { writeToSsh(byteArrayOf(0x0A)) },
+            "←" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_LEFT) },
+            "↓" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_DOWN) },
+            "↑" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_UP) },
+            "→" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_RIGHT) },
+        )
+        val marginPx = dpToPx(2)
+        val minWidthPx = dpToPx(44)
+        val minHeightPx = dpToPx(40)
+        for ((label, action) in keys) {
+            val button = Button(this).apply {
+                text = label
+                isAllCaps = false
+                minWidth = minWidthPx
+                minimumWidth = minWidthPx
+                minHeight = minHeightPx
+                minimumHeight = minHeightPx
+                setPadding(dpToPx(8), 0, dpToPx(8), 0)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                isFocusable = false
+                setOnClickListener {
+                    action()
+                    binding.terminalView.requestFocus()
+                }
+            }
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { setMargins(marginPx, marginPx, marginPx, marginPx) }
+            bar.addView(button, lp)
+        }
+    }
+
+    private fun sendKeyCode(keyCode: Int) {
+        val emu = binding.terminalView.mEmulator
+        val cursorApp = emu?.isCursorKeysApplicationMode == true
+        val keypadApp = emu?.isKeypadApplicationMode == true
+        val code = KeyHandler.getCode(keyCode, 0, cursorApp, keypadApp) ?: return
+        writeToSsh(code.toByteArray(Charsets.UTF_8))
+    }
+
+    private fun dpToPx(dp: Int): Int =
+        (dp * resources.displayMetrics.density).toInt()
 
     private fun setupTerminalView() {
         val terminalView = binding.terminalView

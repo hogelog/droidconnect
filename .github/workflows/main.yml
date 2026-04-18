@@ -3,6 +3,7 @@ name: Main
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -73,3 +74,16 @@ jobs:
             --prerelease \
             --target "${HEAD_SHA}" \
             "$APK_NAME"
+
+      - name: Upload to DeployGate
+        env:
+          DEPLOYGATE_API_KEY: ${{ secrets.DEPLOYGATE_API_KEY }}
+          DEPLOYGATE_USER_NAME: ${{ secrets.DEPLOYGATE_USER_NAME }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          SHORT_SHA="${HEAD_SHA:0:7}"
+          curl -sSfL \
+            -F "token=${DEPLOYGATE_API_KEY}" \
+            -F "file=@app/build/outputs/apk/debug/app-debug.apk" \
+            -F "message=main ${SHORT_SHA}" \
+            "https://deploygate.com/api/users/${DEPLOYGATE_USER_NAME}/apps"

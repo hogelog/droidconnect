@@ -213,9 +213,12 @@ class TerminalActivity : AppCompatActivity() {
         // Create a dummy TerminalSession to initialize TerminalView.
         // "sleep 86400" keeps the process alive without producing output.
         // All actual I/O goes through SSH, not this dummy process.
+        // Termux's TerminalSession uses `args` as the full argv (args[0] becomes
+        // argv[0]). Android's /system/bin/sleep is a toybox multicall binary that
+        // dispatches on argv[0], so we must pass "sleep" as argv[0].
         val dummySession = TerminalSession(
             "/system/bin/sleep", "/",
-            arrayOf("86400"),
+            arrayOf("sleep", "86400"),
             arrayOf("TERM=xterm-256color"),
             null,
             sessionClient

@@ -170,6 +170,7 @@ class TerminalActivity : AppCompatActivity() {
             "^C" to { writeToSsh(byteArrayOf(0x03)) },
             "^D" to { writeToSsh(byteArrayOf(0x04)) },
             "^J" to { writeToSsh(byteArrayOf(0x0A)) },
+            "^R" to { writeToSsh(byteArrayOf(0x12)) },
             "←" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_LEFT) },
             "↓" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_DOWN) },
             "↑" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_UP) },

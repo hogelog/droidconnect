@@ -170,6 +170,16 @@
                 android:layout_marginTop="32dp"
                 android:text="@string/connect" />
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_main_disconnect"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/disconnect"
+                android:textColor="?attr/colorOnError"
+                android:visibility="gone"
+                app:backgroundTint="?attr/colorError" />
+
         </LinearLayout>
     </ScrollView>
 

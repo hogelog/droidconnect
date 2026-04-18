@@ -82,19 +82,9 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, R.string.public_key_copied, Toast.LENGTH_SHORT).show()
         }
 
-        binding.btnConnect.setOnClickListener {
-            if (isSessionActive()) {
-                service?.shutdown()
-            } else {
-                startConnection()
-            }
-        }
-    }
+        binding.btnConnect.setOnClickListener { startConnection() }
 
-    private fun isSessionActive(): Boolean = when (service?.state) {
-        SshConnectionService.State.CONNECTING,
-        SshConnectionService.State.CONNECTED -> true
-        else -> false
+        binding.btnMainDisconnect.setOnClickListener { service?.shutdown() }
     }
 
     private fun startConnection() {
@@ -147,17 +137,17 @@ class MainActivity : AppCompatActivity() {
                 binding.textConnectionStatus.text =
                     getString(R.string.status_connecting_to, svc?.connectionLabel ?: "")
                 binding.cardConnectionStatus.visibility = View.VISIBLE
-                binding.btnConnect.setText(R.string.disconnect)
+                binding.btnMainDisconnect.visibility = View.VISIBLE
             }
             SshConnectionService.State.CONNECTED -> {
                 binding.textConnectionStatus.text =
                     getString(R.string.status_connected_to, svc?.connectionLabel ?: "")
                 binding.cardConnectionStatus.visibility = View.VISIBLE
-                binding.btnConnect.setText(R.string.disconnect)
+                binding.btnMainDisconnect.visibility = View.VISIBLE
             }
             else -> {
                 binding.cardConnectionStatus.visibility = View.GONE
-                binding.btnConnect.setText(R.string.connect)
+                binding.btnMainDisconnect.visibility = View.GONE
             }
         }
     }

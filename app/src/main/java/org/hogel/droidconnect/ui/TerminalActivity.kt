@@ -132,6 +132,11 @@ class TerminalActivity : AppCompatActivity() {
         setupTerminalView()
         setupAuxKeyBar()
 
+        binding.btnDisconnect.setOnClickListener {
+            service?.shutdown()
+            finish()
+        }
+
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
             != PackageManager.PERMISSION_GRANTED
         ) {

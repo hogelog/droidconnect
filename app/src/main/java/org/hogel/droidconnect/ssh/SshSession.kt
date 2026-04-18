@@ -6,10 +6,7 @@ import com.trilead.ssh2.Session
 import java.io.InputStream
 import java.io.OutputStream
 
-/**
- * Manages an SSH connection using sshlib (Trilead SSH2).
- * Handles connection, authentication, PTY allocation, and I/O streams.
- */
+/** SSH connection backed by sshlib (Trilead SSH2). */
 class SshSession(
     private val host: String,
     private val port: Int,
@@ -25,10 +22,7 @@ class SshSession(
     var isConnected: Boolean = false
         private set
 
-    /**
-     * Connect and authenticate via public key.
-     * Must be called from a background thread.
-     */
+    /** Blocking; call from a background thread. */
     fun connect() {
         val conn = Connection(host, port)
         // Accept all host keys for Phase 1 (personal use only)
@@ -45,9 +39,6 @@ class SshSession(
         isConnected = true
     }
 
-    /**
-     * Open a shell session with PTY.
-     */
     fun openShell(columns: Int, rows: Int) {
         val conn = connection ?: throw IllegalStateException("Not connected")
         val sess = conn.openSession()
@@ -56,12 +47,10 @@ class SshSession(
         session = sess
     }
 
-    /** Resize the PTY window. */
     fun resizeWindow(columns: Int, rows: Int) {
         session?.resizePTY(columns, rows, 0, 0)
     }
 
-    /** Disconnect and clean up resources. */
     fun disconnect() {
         isConnected = false
         try { session?.close() } catch (_: Exception) {}

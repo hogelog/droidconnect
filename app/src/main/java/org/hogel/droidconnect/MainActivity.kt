@@ -25,7 +25,6 @@ class MainActivity : AppCompatActivity() {
 
         keyManager = SshKeyManager(this)
 
-        // Show existing public key if available
         updatePublicKeyDisplay()
 
         binding.btnGenerateKey.setOnClickListener {

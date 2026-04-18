@@ -1,12 +1,13 @@
 package org.hogel.droidconnect.ssh
 
 import android.content.Context
+import com.trilead.ssh2.crypto.keys.Ed25519PrivateKey
+import com.trilead.ssh2.crypto.keys.Ed25519Provider
+import com.trilead.ssh2.crypto.keys.Ed25519PublicKey
+import java.io.ByteArrayOutputStream
 import java.io.File
-import java.security.KeyFactory
 import java.security.KeyPairGenerator
-import java.security.interfaces.EdECPrivateKey
-import java.security.interfaces.EdECPublicKey
-import java.security.spec.NamedParameterSpec
+import java.security.SecureRandom
 import java.util.Base64
 
 /**
@@ -26,26 +27,17 @@ class SshKeyManager(context: Context) {
      * Returns the public key in OpenSSH format.
      */
     fun generateKey(): String {
-        val kpg = KeyPairGenerator.getInstance("Ed25519")
-        kpg.initialize(NamedParameterSpec.ED25519)
+        val kpg = KeyPairGenerator.getInstance(Ed25519Provider.KEY_ALGORITHM, Ed25519Provider())
         val keyPair = kpg.generateKeyPair()
+        val seed = (keyPair.private as Ed25519PrivateKey).seed
+        val publicBytes = (keyPair.public as Ed25519PublicKey).abyte
 
-        // Save private key in PKCS#8 PEM format
-        val privateKeyBytes = keyPair.private.encoded
-        val privatePem = buildString {
-            appendLine("-----BEGIN PRIVATE KEY-----")
-            appendLine(Base64.getMimeEncoder(76, "\n".toByteArray()).encodeToString(privateKeyBytes))
-            appendLine("-----END PRIVATE KEY-----")
-        }
-        privateKeyFile.writeText(privatePem)
+        privateKeyFile.writeText(buildOpenSshPrivateKey(seed, publicBytes))
         privateKeyFile.setReadable(false, false)
         privateKeyFile.setReadable(true, true)
 
-        // Build OpenSSH public key format
-        val publicKey = keyPair.public as EdECPublicKey
-        val pubKeyOpenSsh = buildOpenSshPublicKey(publicKey)
+        val pubKeyOpenSsh = buildOpenSshPublicKey(publicBytes)
         publicKeyFile.writeText(pubKeyOpenSsh)
-
         return pubKeyOpenSsh
     }
 
@@ -61,57 +53,66 @@ class SshKeyManager(context: Context) {
         return privateKeyFile.readText().toCharArray()
     }
 
-    private fun buildOpenSshPublicKey(publicKey: EdECPublicKey): String {
-        val keyType = "ssh-ed25519"
-        val point = publicKey.point
-        // Ed25519 public key is 32 bytes
-        val rawKey = edPointToBytes(point)
-
-        val blob = buildSshBlob(keyType, rawKey)
+    private fun buildOpenSshPublicKey(publicBytes: ByteArray): String {
+        val blob = buildSshBlob(ED25519_KEYTYPE, publicBytes)
         val encoded = Base64.getEncoder().encodeToString(blob)
-        return "$keyType $encoded droidconnect"
+        return "$ED25519_KEYTYPE $encoded $KEY_COMMENT"
     }
 
-    private fun edPointToBytes(point: java.security.spec.EdECPoint): ByteArray {
-        val y = point.y.toByteArray()
-        // EdDSA public key encoding: 32 bytes, little-endian y coordinate with x sign bit
-        val result = ByteArray(32)
-        // BigInteger.toByteArray() is big-endian, we need little-endian
-        for (i in y.indices) {
-            if (y.size - 1 - i < 32) {
-                result[y.size - 1 - i] = y[i]
-            }
+    private fun buildOpenSshPrivateKey(seed: ByteArray, publicBytes: ByteArray): String {
+        val out = ByteArrayOutputStream()
+        out.write(OPENSSH_MAGIC)
+        writeSshString(out, "none".toByteArray(Charsets.UTF_8))   // ciphername
+        writeSshString(out, "none".toByteArray(Charsets.UTF_8))   // kdfname
+        writeSshString(out, ByteArray(0))                         // kdfoptions
+        writeUint32(out, 1)                                       // numkeys
+        writeSshString(out, buildSshBlob(ED25519_KEYTYPE, publicBytes))
+
+        val priv = ByteArrayOutputStream()
+        val checkInt = SecureRandom().nextInt()
+        writeUint32(priv, checkInt)
+        writeUint32(priv, checkInt)
+        writeSshString(priv, ED25519_KEYTYPE.toByteArray(Charsets.UTF_8))
+        writeSshString(priv, publicBytes)
+        writeSshString(priv, seed + publicBytes)
+        writeSshString(priv, KEY_COMMENT.toByteArray(Charsets.UTF_8))
+        var pad = 1
+        while (priv.size() % 8 != 0) {
+            priv.write(pad)
+            pad++
         }
-        // Set the high bit of the last byte if x is odd
-        if (point.isXOdd) {
-            result[31] = (result[31].toInt() or 0x80).toByte()
+        writeSshString(out, priv.toByteArray())
+
+        val encoded = Base64.getEncoder().encodeToString(out.toByteArray())
+        return buildString {
+            appendLine("-----BEGIN OPENSSH PRIVATE KEY-----")
+            encoded.chunked(70).forEach { appendLine(it) }
+            appendLine("-----END OPENSSH PRIVATE KEY-----")
         }
-        return result
     }
 
     private fun buildSshBlob(keyType: String, rawKey: ByteArray): ByteArray {
-        val typeBytes = keyType.toByteArray(Charsets.UTF_8)
-        val result = ByteArray(4 + typeBytes.size + 4 + rawKey.size)
-        var offset = 0
-
-        // key type length + key type
-        putInt(result, offset, typeBytes.size)
-        offset += 4
-        typeBytes.copyInto(result, offset)
-        offset += typeBytes.size
-
-        // raw key length + raw key
-        putInt(result, offset, rawKey.size)
-        offset += 4
-        rawKey.copyInto(result, offset)
-
-        return result
+        val out = ByteArrayOutputStream()
+        writeSshString(out, keyType.toByteArray(Charsets.UTF_8))
+        writeSshString(out, rawKey)
+        return out.toByteArray()
     }
 
-    private fun putInt(buf: ByteArray, offset: Int, value: Int) {
-        buf[offset] = (value shr 24).toByte()
-        buf[offset + 1] = (value shr 16).toByte()
-        buf[offset + 2] = (value shr 8).toByte()
-        buf[offset + 3] = value.toByte()
+    private fun writeSshString(out: ByteArrayOutputStream, bytes: ByteArray) {
+        writeUint32(out, bytes.size)
+        out.write(bytes)
+    }
+
+    private fun writeUint32(out: ByteArrayOutputStream, value: Int) {
+        out.write(value ushr 24 and 0xff)
+        out.write(value ushr 16 and 0xff)
+        out.write(value ushr 8 and 0xff)
+        out.write(value and 0xff)
+    }
+
+    companion object {
+        private const val ED25519_KEYTYPE = "ssh-ed25519"
+        private const val KEY_COMMENT = "droidconnect"
+        private val OPENSSH_MAGIC = "openssh-key-v1\u0000".toByteArray(Charsets.ISO_8859_1)
     }
 }

@@ -16,4 +16,10 @@
     <string name="connecting">Connecting…</string>
     <string name="connection_failed">Connection failed</string>
     <string name="disconnected">Disconnected</string>
+    <string name="notification_channel_name">SSH connection</string>
+    <string name="notification_channel_description">Keeps the SSH session alive while the app is in the background.</string>
+    <string name="notification_title">DroidConnect</string>
+    <string name="notification_text_connecting">Connecting…</string>
+    <string name="notification_text_connected">Connected to %1$s</string>
+    <string name="notification_action_disconnect">Disconnect</string>
 </resources>

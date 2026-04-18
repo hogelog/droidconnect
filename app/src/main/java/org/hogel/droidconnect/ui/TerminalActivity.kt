@@ -1,8 +1,14 @@
 package org.hogel.droidconnect.ui
 
+import android.Manifest
+import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
+import android.content.pm.PackageManager
 import android.graphics.Typeface
 import android.os.Bundle
+import android.os.IBinder
 import android.util.Log
 import android.util.TypedValue
 import android.view.KeyCharacterMap
@@ -13,40 +19,96 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import org.hogel.droidconnect.R
 import org.hogel.droidconnect.databinding.ActivityTerminalBinding
-import org.hogel.droidconnect.ssh.SshSession
+import org.hogel.droidconnect.ssh.SshConnectionService
 import org.hogel.droidconnect.ssh.SshKeyManager
 import com.termux.terminal.KeyHandler
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
 import com.termux.view.TerminalViewClient
-import java.io.OutputStream
-import java.util.concurrent.Executors
-import kotlin.concurrent.thread
 
 /**
  * Terminal UI activity.
  *
- * Architecture: Creates a dummy TerminalSession (with "sleep") to initialize
- * TerminalView and its TerminalEmulator. SSH I/O is bridged separately:
- * - SSH stdout → TerminalEmulator.append() (posted to main thread)
- * - User keyboard input → intercepted in onKeyDown/onCodePoint → SSH stdin
+ * The SSH session lives in [SshConnectionService] (a foreground service), not
+ * here, so the connection survives backgrounding and process death of the UI.
+ * This activity binds to the service to feed SSH stdout into the
+ * TerminalEmulator and forward keyboard input to ssh stdin.
  */
 class TerminalActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityTerminalBinding
-    private var sshSession: SshSession? = null
-    private var sshOutputStream: OutputStream? = null
-    @Volatile private var running = false
 
-    // A single-thread executor serializes writes to sshOutputStream so that
-    // characters emitted in rapid succession (e.g. when the IME commits a
-    // suggestion one code point at a time) reach the remote shell in order.
-    private val sshWriteExecutor = Executors.newSingleThreadExecutor { r ->
-        Thread(r, "ssh-write").apply { isDaemon = true }
+    private var service: SshConnectionService? = null
+    private var bound = false
+
+    private var pendingParams: SshConnectionService.ConnectionParams? = null
+
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { _ ->
+        // The service is allowed to start even if the permission was denied;
+        // the system simply suppresses the notification UI in that case.
+        startAndBindService()
+    }
+
+    private val outputListener: (ByteArray) -> Unit = ::handleSshOutput
+
+    private fun handleSshOutput(data: ByteArray) {
+        val emulator = binding.terminalView.mEmulator ?: return
+        emulator.append(data, data.size)
+        binding.terminalView.invalidate()
+    }
+
+    private val statusListener = object : SshConnectionService.StatusListener {
+        override fun onSshConnected() {
+            service?.let { syncWindowSize(it) }
+        }
+
+        override fun onSshDisconnected(error: Throwable?) {
+            val message = if (error != null) {
+                "${getString(R.string.connection_failed)}: ${error.message}"
+            } else {
+                getString(R.string.disconnected)
+            }
+            Toast.makeText(this@TerminalActivity, message, Toast.LENGTH_SHORT).show()
+            finish()
+        }
+    }
+
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName, ibinder: IBinder) {
+            val svc = (ibinder as SshConnectionService.LocalBinder).getService()
+            service = svc
+            bound = true
+            svc.attachOutputListener(outputListener)
+            svc.addStatusListener(statusListener)
+            val params = pendingParams
+            when {
+                svc.state == SshConnectionService.State.IDLE && params != null -> {
+                    val emulator = binding.terminalView.mEmulator
+                    val cols = emulator?.mColumns ?: DEFAULT_COLUMNS
+                    val rows = emulator?.mRows ?: DEFAULT_ROWS
+                    svc.connect(params, cols, rows)
+                }
+                svc.state == SshConnectionService.State.IDLE -> {
+                    // Resumed from notification but the service is no longer connected.
+                    Toast.makeText(this@TerminalActivity, R.string.disconnected, Toast.LENGTH_SHORT).show()
+                    finish()
+                }
+                else -> syncWindowSize(svc)
+            }
+        }
+
+        override fun onServiceDisconnected(name: ComponentName) {
+            service = null
+            bound = false
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,19 +118,40 @@ class TerminalActivity : AppCompatActivity() {
         binding = ActivityTerminalBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        val host = intent.getStringExtra(EXTRA_HOST) ?: return finish()
+        val host = intent.getStringExtra(EXTRA_HOST)
+        val username = intent.getStringExtra(EXTRA_USERNAME)
         val port = intent.getIntExtra(EXTRA_PORT, 22)
-        val username = intent.getStringExtra(EXTRA_USERNAME) ?: return finish()
-
-        val keyManager = SshKeyManager(this)
-        val privateKey = keyManager.getPrivateKeyPem() ?: run {
-            Toast.makeText(this, "No SSH key found", Toast.LENGTH_SHORT).show()
-            return finish()
+        if (host != null && username != null) {
+            val privateKey = SshKeyManager(this).getPrivateKeyPem() ?: run {
+                Toast.makeText(this, "No SSH key found", Toast.LENGTH_SHORT).show()
+                return finish()
+            }
+            pendingParams = SshConnectionService.ConnectionParams(host, port, username, privateKey)
         }
 
         setupTerminalView()
         setupAuxKeyBar()
-        connectSsh(host, port, username, privateKey)
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            startAndBindService()
+        }
+    }
+
+    private fun startAndBindService() {
+        val serviceIntent = Intent(this, SshConnectionService::class.java)
+        ContextCompat.startForegroundService(this, serviceIntent)
+        bindService(serviceIntent, serviceConnection, Context.BIND_AUTO_CREATE)
+    }
+
+    private fun syncWindowSize(svc: SshConnectionService) {
+        val emulator = binding.terminalView.mEmulator ?: return
+        val cols = emulator.mColumns
+        val rows = emulator.mRows
+        if (cols > 0 && rows > 0) svc.resizeWindow(cols, rows)
     }
 
     private fun setupAuxKeyBar() {
@@ -159,59 +242,8 @@ class TerminalActivity : AppCompatActivity() {
         imm.toggleSoftInput(InputMethodManager.SHOW_IMPLICIT, 0)
     }
 
-    private fun connectSsh(host: String, port: Int, username: String, privateKey: CharArray) {
-        running = true
-        thread(name = "ssh-connect") {
-            try {
-                val ssh = SshSession(host, port, username, privateKey)
-                ssh.connect()
-                sshSession = ssh
-
-                val emulator = binding.terminalView.mEmulator
-                    ?: throw IllegalStateException("Emulator not initialized")
-                val columns = emulator.mColumns
-                val rows = emulator.mRows
-
-                ssh.openShell(columns, rows)
-                sshOutputStream = ssh.stdin
-
-                val buffer = ByteArray(8192)
-                val inputStream = ssh.stdout
-                while (running) {
-                    val bytesRead = inputStream.read(buffer)
-                    if (bytesRead == -1) break
-                    val data = buffer.copyOf(bytesRead)
-                    binding.terminalView.post {
-                        emulator.append(data, data.size)
-                        binding.terminalView.invalidate()
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "SSH error", e)
-                runOnUiThread {
-                    Toast.makeText(this, "${getString(R.string.connection_failed)}: ${e.message}", Toast.LENGTH_LONG).show()
-                    finish()
-                }
-                return@thread
-            }
-
-            runOnUiThread {
-                Toast.makeText(this, R.string.disconnected, Toast.LENGTH_SHORT).show()
-                finish()
-            }
-        }
-    }
-
     private fun writeToSsh(data: ByteArray) {
-        val out = sshOutputStream ?: return
-        sshWriteExecutor.execute {
-            try {
-                out.write(data)
-                out.flush()
-            } catch (e: Exception) {
-                Log.e(TAG, "SSH write error", e)
-            }
-        }
+        service?.writeToSsh(data)
     }
 
     private fun writeCodePointToSsh(codePoint: Int, prependEscape: Boolean) {
@@ -262,10 +294,14 @@ class TerminalActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        running = false
-        sshSession?.disconnect()
+        if (bound) {
+            service?.detachOutputListener()
+            service?.removeStatusListener(statusListener)
+            unbindService(serviceConnection)
+            bound = false
+            service = null
+        }
         binding.terminalView.mTermSession?.finishIfRunning()
-        sshWriteExecutor.shutdownNow()
         super.onDestroy()
     }
 
@@ -405,6 +441,8 @@ class TerminalActivity : AppCompatActivity() {
         const val EXTRA_HOST = "host"
         const val EXTRA_PORT = "port"
         const val EXTRA_USERNAME = "username"
+        private const val DEFAULT_COLUMNS = 80
+        private const val DEFAULT_ROWS = 24
         private const val TAG = "TerminalActivity"
     }
 }

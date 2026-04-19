@@ -23,6 +23,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit
 import java.util.concurrent.Executors
 import java.util.concurrent.SynchronousQueue
 import org.hogel.droidconnect.R
@@ -118,6 +119,9 @@ class TerminalActivity : AppCompatActivity() {
     private var stickyCtrl = false
     private var shiftButton: Button? = null
     private var ctrlButton: Button? = null
+
+    private var fontSizePx = DEFAULT_FONT_SIZE_PX
+    private val terminalPrefs by lazy { getSharedPreferences(PREFS_TERMINAL, Context.MODE_PRIVATE) }
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -326,9 +330,21 @@ class TerminalActivity : AppCompatActivity() {
     private fun dpToPx(dp: Int): Int =
         (dp * resources.displayMetrics.density).toInt()
 
+    private fun changeFontSize(increase: Boolean) {
+        val newSize = (fontSizePx + if (increase) FONT_SIZE_STEP_PX else -FONT_SIZE_STEP_PX)
+            .coerceIn(MIN_FONT_SIZE_PX, MAX_FONT_SIZE_PX)
+        if (newSize == fontSizePx) return
+        fontSizePx = newSize
+        binding.terminalView.setTextSize(newSize)
+        terminalPrefs.edit { putInt(KEY_FONT_SIZE_PX, newSize) }
+        service?.let { syncWindowSize(it) }
+    }
+
     private fun setupTerminalView() {
         val terminalView = binding.terminalView
-        terminalView.setTextSize(16)
+        fontSizePx = terminalPrefs.getInt(KEY_FONT_SIZE_PX, DEFAULT_FONT_SIZE_PX)
+            .coerceIn(MIN_FONT_SIZE_PX, MAX_FONT_SIZE_PX)
+        terminalView.setTextSize(fontSizePx)
         terminalView.setTypeface(Typeface.MONOSPACE)
 
         // Create a dummy TerminalSession to initialize TerminalView.
@@ -459,7 +475,16 @@ class TerminalActivity : AppCompatActivity() {
     // --- TerminalViewClient ---
     // Key input is intercepted here and sent to SSH instead of the dummy TerminalSession.
     private val viewClient = object : TerminalViewClient {
-        override fun onScale(scale: Float): Float = 1.0f
+        // Return value becomes TerminalView.mScaleFactor: return 1.0f to reset
+        // the accumulator after stepping, or the current scale to keep
+        // accumulating until the next threshold.
+        override fun onScale(scale: Float): Float {
+            if (scale < 0.9f || scale > 1.1f) {
+                changeFontSize(scale > 1.0f)
+                return 1.0f
+            }
+            return scale
+        }
         override fun onSingleTapUp(e: MotionEvent?) {
             // Tapping the terminal toggles the soft keyboard so it can be
             // re-summoned after the user dismisses it with the back gesture.
@@ -587,6 +612,12 @@ class TerminalActivity : AppCompatActivity() {
         const val EXTRA_USE_TMUX = "use_tmux"
         private const val DEFAULT_COLUMNS = 80
         private const val DEFAULT_ROWS = 24
+        private const val DEFAULT_FONT_SIZE_PX = 16
+        private const val MIN_FONT_SIZE_PX = 8
+        private const val MAX_FONT_SIZE_PX = 80
+        private const val FONT_SIZE_STEP_PX = 2
+        private const val PREFS_TERMINAL = "terminal"
+        private const val KEY_FONT_SIZE_PX = "font_size_px"
         private const val TAG = "TerminalActivity"
     }
 }

@@ -1,110 +1,72 @@
 package org.hogel.droidconnect.ssh
 
-import android.content.Context
-import com.trilead.ssh2.crypto.keys.Ed25519PrivateKey
-import com.trilead.ssh2.crypto.keys.Ed25519Provider
-import com.trilead.ssh2.crypto.keys.Ed25519PublicKey
-import java.io.ByteArrayOutputStream
-import java.io.File
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import com.trilead.ssh2.signature.ECDSASHA2Verify
 import java.security.KeyPairGenerator
-import java.security.SecureRandom
+import java.security.KeyStore
+import java.security.PrivateKey
+import java.security.interfaces.ECPublicKey
+import java.security.spec.ECGenParameterSpec
 import java.util.Base64
 
-/** Ed25519 SSH key pair stored under the app's private files dir. */
-class SshKeyManager(context: Context) {
+/**
+ * ECDSA P-256 SSH key pair stored in the Android Keystore.
+ *
+ * The private key never leaves the TEE: each signature requires a fresh
+ * biometric unlock (per-use, no time-based validity window). The public key
+ * is derived from the keystore entry on demand and formatted as an OpenSSH
+ * authorized_keys line.
+ */
+class SshKeyManager {
 
-    private val keyDir = File(context.filesDir, "ssh_keys").also { it.mkdirs() }
-    private val privateKeyFile = File(keyDir, "id_ed25519")
-    private val publicKeyFile = File(keyDir, "id_ed25519.pub")
+    fun hasKey(): Boolean = loadKeyStore().containsAlias(KEY_ALIAS)
 
-    fun hasKey(): Boolean = privateKeyFile.exists() && publicKeyFile.exists()
-
-    /** Generates and persists a new key pair. Returns the OpenSSH-formatted public key. */
+    /** Generates a new keystore-backed key, replacing any existing one. Returns the OpenSSH public key. */
     fun generateKey(): String {
-        val kpg = KeyPairGenerator.getInstance(Ed25519Provider.KEY_ALGORITHM, Ed25519Provider())
-        val keyPair = kpg.generateKeyPair()
-        val seed = (keyPair.private as Ed25519PrivateKey).seed
-        val publicBytes = (keyPair.public as Ed25519PublicKey).abyte
-
-        privateKeyFile.writeText(buildOpenSshPrivateKey(seed, publicBytes))
-        privateKeyFile.setReadable(false, false)
-        privateKeyFile.setReadable(true, true)
-
-        val pubKeyOpenSsh = buildOpenSshPublicKey(publicBytes)
-        publicKeyFile.writeText(pubKeyOpenSsh)
-        return pubKeyOpenSsh
+        val kpg = KeyPairGenerator.getInstance(
+            KeyProperties.KEY_ALGORITHM_EC,
+            ANDROID_KEYSTORE,
+        )
+        kpg.initialize(
+            KeyGenParameterSpec.Builder(KEY_ALIAS, KeyProperties.PURPOSE_SIGN)
+                .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
+                .setDigests(KeyProperties.DIGEST_SHA256)
+                .setUserAuthenticationRequired(true)
+                // timeout=0 + BIOMETRIC_STRONG → each sign() needs a fresh biometric
+                // unlock via BiometricPrompt.CryptoObject, not a time-based window.
+                .setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG)
+                .setInvalidatedByBiometricEnrollment(true)
+                .build()
+        )
+        kpg.generateKeyPair()
+        return getPublicKey() ?: error("Key generation succeeded but public key is missing")
     }
 
+    /** Returns the authorized_keys-formatted public key, or null if no key exists. */
     fun getPublicKey(): String? {
-        if (!publicKeyFile.exists()) return null
-        return publicKeyFile.readText().trim()
+        val publicKey = loadPublicKey() ?: return null
+        val sshBlob = ECDSASHA2Verify.ECDSASHA2NISTP256Verify.get().encodePublicKey(publicKey)
+        val encoded = Base64.getEncoder().encodeToString(sshBlob)
+        return "ecdsa-sha2-nistp256 $encoded $KEY_COMMENT"
     }
 
-    fun getPrivateKeyPem(): CharArray? {
-        if (!privateKeyFile.exists()) return null
-        return privateKeyFile.readText().toCharArray()
+    /** Returns the keystore-backed public key, or null if no key exists. */
+    fun loadPublicKey(): ECPublicKey? {
+        val cert = loadKeyStore().getCertificate(KEY_ALIAS) ?: return null
+        return cert.publicKey as ECPublicKey
     }
 
-    private fun buildOpenSshPublicKey(publicBytes: ByteArray): String {
-        val blob = buildSshBlob(ED25519_KEYTYPE, publicBytes)
-        val encoded = Base64.getEncoder().encodeToString(blob)
-        return "$ED25519_KEYTYPE $encoded $KEY_COMMENT"
-    }
+    /** Returns the keystore-backed private key (only a handle; the raw key stays in the TEE). */
+    fun loadPrivateKey(): PrivateKey? =
+        loadKeyStore().getKey(KEY_ALIAS, null) as? PrivateKey
 
-    private fun buildOpenSshPrivateKey(seed: ByteArray, publicBytes: ByteArray): String {
-        val out = ByteArrayOutputStream()
-        out.write(OPENSSH_MAGIC)
-        writeSshString(out, "none".toByteArray(Charsets.UTF_8))   // ciphername
-        writeSshString(out, "none".toByteArray(Charsets.UTF_8))   // kdfname
-        writeSshString(out, ByteArray(0))                         // kdfoptions
-        writeUint32(out, 1)                                       // numkeys
-        writeSshString(out, buildSshBlob(ED25519_KEYTYPE, publicBytes))
-
-        val priv = ByteArrayOutputStream()
-        val checkInt = SecureRandom().nextInt()
-        writeUint32(priv, checkInt)
-        writeUint32(priv, checkInt)
-        writeSshString(priv, ED25519_KEYTYPE.toByteArray(Charsets.UTF_8))
-        writeSshString(priv, publicBytes)
-        writeSshString(priv, seed + publicBytes)
-        writeSshString(priv, KEY_COMMENT.toByteArray(Charsets.UTF_8))
-        var pad = 1
-        while (priv.size() % 8 != 0) {
-            priv.write(pad)
-            pad++
-        }
-        writeSshString(out, priv.toByteArray())
-
-        val encoded = Base64.getEncoder().encodeToString(out.toByteArray())
-        return buildString {
-            appendLine("-----BEGIN OPENSSH PRIVATE KEY-----")
-            encoded.chunked(70).forEach { appendLine(it) }
-            appendLine("-----END OPENSSH PRIVATE KEY-----")
-        }
-    }
-
-    private fun buildSshBlob(keyType: String, rawKey: ByteArray): ByteArray {
-        val out = ByteArrayOutputStream()
-        writeSshString(out, keyType.toByteArray(Charsets.UTF_8))
-        writeSshString(out, rawKey)
-        return out.toByteArray()
-    }
-
-    private fun writeSshString(out: ByteArrayOutputStream, bytes: ByteArray) {
-        writeUint32(out, bytes.size)
-        out.write(bytes)
-    }
-
-    private fun writeUint32(out: ByteArrayOutputStream, value: Int) {
-        out.write(value ushr 24 and 0xff)
-        out.write(value ushr 16 and 0xff)
-        out.write(value ushr 8 and 0xff)
-        out.write(value and 0xff)
-    }
+    private fun loadKeyStore(): KeyStore =
+        KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
 
     companion object {
-        private const val ED25519_KEYTYPE = "ssh-ed25519"
+        const val KEY_ALIAS = "droidconnect-ssh-key"
+        private const val ANDROID_KEYSTORE = "AndroidKeyStore"
         private const val KEY_COMMENT = "droidconnect"
-        private val OPENSSH_MAGIC = "openssh-key-v1\u0000".toByteArray(Charsets.ISO_8859_1)
     }
 }

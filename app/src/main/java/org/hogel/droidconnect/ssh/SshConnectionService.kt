@@ -119,7 +119,12 @@ class SshConnectionService : Service() {
         try {
             val ssh = SshSession(params.host, params.port, params.username, params.privateKey)
             ssh.connect()
-            ssh.openShell(columns.coerceAtLeast(1), rows.coerceAtLeast(1), params.command)
+            ssh.openShell(
+                columns.coerceAtLeast(1),
+                rows.coerceAtLeast(1),
+                params.command,
+                params.useTmux,
+            )
             session = ssh
             state = State.CONNECTED
             updateNotification(getString(R.string.notification_text_connected, connectionLabel))
@@ -306,6 +311,7 @@ class SshConnectionService : Service() {
         val username: String,
         val privateKey: CharArray,
         val command: String? = null,
+        val useTmux: Boolean = false,
     ) {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
@@ -314,7 +320,8 @@ class SshConnectionService : Service() {
                 port == other.port &&
                 username == other.username &&
                 privateKey.contentEquals(other.privateKey) &&
-                command == other.command
+                command == other.command &&
+                useTmux == other.useTmux
         }
 
         override fun hashCode(): Int {
@@ -323,6 +330,7 @@ class SshConnectionService : Service() {
             result = 31 * result + username.hashCode()
             result = 31 * result + privateKey.contentHashCode()
             result = 31 * result + (command?.hashCode() ?: 0)
+            result = 31 * result + useTmux.hashCode()
             return result
         }
     }

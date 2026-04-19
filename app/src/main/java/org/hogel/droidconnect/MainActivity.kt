@@ -137,6 +137,7 @@ class MainActivity : AppCompatActivity() {
             putExtra(TerminalActivity.EXTRA_PORT, port)
             putExtra(TerminalActivity.EXTRA_USERNAME, username)
             putExtra(TerminalActivity.EXTRA_POST_CONNECT_COMMAND, command)
+            putExtra(TerminalActivity.EXTRA_USE_TMUX, binding.switchUseTmux.isChecked)
         }
         startActivity(intent)
     }
@@ -196,6 +197,7 @@ class MainActivity : AppCompatActivity() {
         prefs.getString(KEY_LAST_COMMAND, null)?.let {
             binding.editPostConnectCommand.setText(it)
         }
+        binding.switchUseTmux.isChecked = prefs.getBoolean(KEY_USE_TMUX, true)
     }
 
     private fun saveConnectionInput() {
@@ -204,6 +206,7 @@ class MainActivity : AppCompatActivity() {
             putString(KEY_PORT, binding.editPort.text.toString())
             putString(KEY_USERNAME, binding.editUsername.text.toString())
             putString(KEY_LAST_COMMAND, binding.editPostConnectCommand.text.toString())
+            putBoolean(KEY_USE_TMUX, binding.switchUseTmux.isChecked)
         }
     }
 
@@ -254,6 +257,7 @@ class MainActivity : AppCompatActivity() {
         private const val KEY_USERNAME = "username"
         private const val KEY_LAST_COMMAND = "post_connect_command"
         private const val KEY_COMMAND_HISTORY = "post_connect_command_history"
+        private const val KEY_USE_TMUX = "use_tmux"
         private const val MAX_COMMAND_HISTORY = 20
     }
 }

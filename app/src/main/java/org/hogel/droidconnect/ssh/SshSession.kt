@@ -40,22 +40,58 @@ class SshSession(
     }
 
     /**
-     * Open an interactive session. With no [initialCommand], starts a normal
-     * login shell. Otherwise runs the command via `bash -lc` on the remote
-     * so ~/.profile / ~/.bashrc are sourced (PATH, aliases, nvm, etc. are
-     * available). When the command exits, the session closes.
+     * Open an interactive session.
+     *
+     * With no [initialCommand] and no [useTmux], starts a normal login shell.
+     *
+     * Otherwise runs a command via `bash -lc` on the remote so ~/.profile /
+     * ~/.bashrc are sourced (PATH, aliases, nvm, etc. are available). When
+     * [useTmux] is true, the command is wrapped in
+     * `tmux new-session -A -s <name>` so the session survives disconnects:
+     * reconnecting attaches to the existing session, or creates a new one if
+     * none exists. When the session command exits, the SSH channel closes.
      */
-    fun openShell(columns: Int, rows: Int, initialCommand: String? = null) {
+    fun openShell(
+        columns: Int,
+        rows: Int,
+        initialCommand: String? = null,
+        useTmux: Boolean = false,
+    ) {
         val conn = connection ?: throw IllegalStateException("Not connected")
         val sess = conn.openSession()
         sess.requestPTY("xterm-256color", columns, rows, 0, 0, null)
-        if (initialCommand.isNullOrBlank()) {
+        val remoteCommand = buildRemoteCommand(initialCommand, useTmux)
+        if (remoteCommand == null) {
             sess.startShell()
         } else {
-            val escaped = initialCommand.replace("'", "'\\''")
-            sess.execCommand("bash -lc '$escaped'")
+            sess.execCommand(remoteCommand)
         }
         session = sess
+    }
+
+    private fun buildRemoteCommand(initialCommand: String?, useTmux: Boolean): String? {
+        val trimmed = initialCommand?.takeIf { it.isNotBlank() }
+        if (!useTmux && trimmed == null) return null
+
+        val inner = if (useTmux) {
+            buildString {
+                append("tmux new-session -A -s ")
+                append(TMUX_SESSION_NAME)
+                if (trimmed != null) {
+                    append(' ')
+                    append(shellQuote(trimmed))
+                }
+            }
+        } else {
+            trimmed!!
+        }
+        return "bash -lc ${shellQuote(inner)}"
+    }
+
+    /** Wrap [value] in single quotes for safe use inside a POSIX shell command. */
+    private fun shellQuote(value: String): String {
+        val escaped = value.replace("'", "'\\''")
+        return "'$escaped'"
     }
 
     fun resizeWindow(columns: Int, rows: Int) {
@@ -77,6 +113,7 @@ class SshSession(
 
     companion object {
         private const val TAG = "SshSession"
+        private const val TMUX_SESSION_NAME = "droidconnect"
     }
 }
 

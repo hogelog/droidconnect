@@ -22,6 +22,7 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit
 import org.hogel.droidconnect.R
 import org.hogel.droidconnect.databinding.ActivityTerminalBinding
 import org.hogel.droidconnect.ssh.SshConnectionService
@@ -56,6 +57,7 @@ class TerminalActivity : AppCompatActivity() {
     private var ctrlButton: Button? = null
 
     private var fontSizePx = DEFAULT_FONT_SIZE_PX
+    private val terminalPrefs by lazy { getSharedPreferences(PREFS_TERMINAL, Context.MODE_PRIVATE) }
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -270,11 +272,14 @@ class TerminalActivity : AppCompatActivity() {
         if (newSize == fontSizePx) return
         fontSizePx = newSize
         binding.terminalView.setTextSize(newSize)
+        terminalPrefs.edit { putInt(KEY_FONT_SIZE_PX, newSize) }
         service?.let { syncWindowSize(it) }
     }
 
     private fun setupTerminalView() {
         val terminalView = binding.terminalView
+        fontSizePx = terminalPrefs.getInt(KEY_FONT_SIZE_PX, DEFAULT_FONT_SIZE_PX)
+            .coerceIn(MIN_FONT_SIZE_PX, MAX_FONT_SIZE_PX)
         terminalView.setTextSize(fontSizePx)
         terminalView.setTypeface(Typeface.MONOSPACE)
 
@@ -546,6 +551,8 @@ class TerminalActivity : AppCompatActivity() {
         private const val MIN_FONT_SIZE_PX = 8
         private const val MAX_FONT_SIZE_PX = 80
         private const val FONT_SIZE_STEP_PX = 2
+        private const val PREFS_TERMINAL = "terminal"
+        private const val KEY_FONT_SIZE_PX = "font_size_px"
         private const val TAG = "TerminalActivity"
     }
 }

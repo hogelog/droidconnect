@@ -100,8 +100,18 @@ class SshConnectionService : Service() {
 
     /**
      * Start a new SSH connection. No-op if a connection is already running.
+     *
+     * [authenticator] is invoked on a background thread during the SSH
+     * pubkey handshake; it must show the biometric prompt on the UI thread
+     * and block until the user completes or cancels. Passing the caller's
+     * authenticator here avoids coupling the foreground service to any UI.
      */
-    fun connect(params: ConnectionParams, columns: Int, rows: Int) {
+    fun connect(
+        params: ConnectionParams,
+        authenticator: BiometricAuthenticator,
+        columns: Int,
+        rows: Int,
+    ) {
         synchronized(this) {
             if (state == State.CONNECTING || state == State.CONNECTED) return
             state = State.CONNECTING
@@ -109,15 +119,24 @@ class SshConnectionService : Service() {
             connectionLabel = "${params.username}@${params.host}:${params.port}"
             updateNotification(getString(R.string.notification_text_connecting))
             readThread = thread(name = "ssh-read") {
-                runReadLoop(params, columns, rows)
+                runReadLoop(params, authenticator, columns, rows)
             }
         }
     }
 
-    private fun runReadLoop(params: ConnectionParams, columns: Int, rows: Int) {
+    private fun runReadLoop(
+        params: ConnectionParams,
+        authenticator: BiometricAuthenticator,
+        columns: Int,
+        rows: Int,
+    ) {
         var caught: Throwable? = null
         try {
-            val ssh = SshSession(params.host, params.port, params.username, params.privateKey)
+            val keyManager = SshKeyManager()
+            val publicKey = keyManager.loadPublicKey()
+                ?: throw SshAuthenticationException("No SSH key found")
+            val signatureProxy = KeystoreSignatureProxy(publicKey, keyManager, authenticator)
+            val ssh = SshSession(params.host, params.port, params.username, signatureProxy)
             ssh.connect()
             ssh.openShell(
                 columns.coerceAtLeast(1),
@@ -309,31 +328,9 @@ class SshConnectionService : Service() {
         val host: String,
         val port: Int,
         val username: String,
-        val privateKey: CharArray,
         val command: String? = null,
         val useTmux: Boolean = false,
-    ) {
-        override fun equals(other: Any?): Boolean {
-            if (this === other) return true
-            if (other !is ConnectionParams) return false
-            return host == other.host &&
-                port == other.port &&
-                username == other.username &&
-                privateKey.contentEquals(other.privateKey) &&
-                command == other.command &&
-                useTmux == other.useTmux
-        }
-
-        override fun hashCode(): Int {
-            var result = host.hashCode()
-            result = 31 * result + port
-            result = 31 * result + username.hashCode()
-            result = 31 * result + privateKey.contentHashCode()
-            result = 31 * result + (command?.hashCode() ?: 0)
-            result = 31 * result + useTmux.hashCode()
-            return result
-        }
-    }
+    )
 
     companion object {
         const val ACTION_STOP = "org.hogel.droidconnect.action.STOP_CONNECTION"

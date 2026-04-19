@@ -10,6 +10,7 @@ androidx.appcompat:appcompat-resources:1.7.0=debugCompileClasspath,debugRuntimeC
 androidx.appcompat:appcompat:1.7.0=debugCompileClasspath,debugRuntimeClasspath,releaseCompileClasspath,releaseRuntimeClasspath
 androidx.arch.core:core-common:2.2.0=debugCompileClasspath,debugRuntimeClasspath,releaseCompileClasspath,releaseRuntimeClasspath
 androidx.arch.core:core-runtime:2.2.0=debugCompileClasspath,debugRuntimeClasspath,releaseCompileClasspath,releaseRuntimeClasspath
+androidx.biometric:biometric:1.1.0=debugCompileClasspath,debugRuntimeClasspath,releaseCompileClasspath,releaseRuntimeClasspath
 androidx.cardview:cardview:1.0.0=debugCompileClasspath,debugRuntimeClasspath,releaseCompileClasspath,releaseRuntimeClasspath
 androidx.collection:collection-jvm:1.4.2=debugCompileClasspath,debugRuntimeClasspath,releaseCompileClasspath,releaseRuntimeClasspath
 androidx.collection:collection:1.4.2=debugCompileClasspath,debugRuntimeClasspath,releaseCompileClasspath,releaseRuntimeClasspath

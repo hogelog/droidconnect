@@ -49,6 +49,12 @@ class TerminalActivity : AppCompatActivity() {
 
     private var pendingParams: SshConnectionService.ConnectionParams? = null
 
+    // Sticky modifier state: applies to the next single key input, then resets.
+    private var stickyShift = false
+    private var stickyCtrl = false
+    private var shiftButton: Button? = null
+    private var ctrlButton: Button? = null
+
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { _ ->
@@ -165,51 +171,92 @@ class TerminalActivity : AppCompatActivity() {
 
     private fun setupAuxKeyBar() {
         val bar = binding.auxKeyBar
+        val marginPx = dpToPx(2)
+        val minWidthPx = dpToPx(44)
+        val minHeightPx = dpToPx(40)
+
+        fun layoutParams() = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+        ).apply { setMargins(marginPx, marginPx, marginPx, marginPx) }
+
+        fun makeButton(label: String, action: () -> Unit): Button = Button(this).apply {
+            text = label
+            isAllCaps = false
+            minWidth = minWidthPx
+            minimumWidth = minWidthPx
+            minHeight = minHeightPx
+            minimumHeight = minHeightPx
+            setPadding(dpToPx(8), 0, dpToPx(8), 0)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            isFocusable = false
+            setOnClickListener {
+                action()
+                binding.terminalView.requestFocus()
+            }
+        }
+
+        // Sends a raw byte sequence, clearing sticky modifiers (they don't
+        // meaningfully combine with preset ^X shortcuts or ESC).
+        fun sendRaw(bytes: ByteArray): () -> Unit = {
+            writeToSsh(bytes)
+            clearStickyModifiers()
+        }
+
         val keys: List<Pair<String, () -> Unit>> = listOf(
-            "ESC" to { writeToSsh(byteArrayOf(0x1B)) },
-            "TAB" to { writeToSsh(byteArrayOf(0x09)) },
-            "^C" to { writeToSsh(byteArrayOf(0x03)) },
-            "^D" to { writeToSsh(byteArrayOf(0x04)) },
-            "^J" to { writeToSsh(byteArrayOf(0x0A)) },
-            "^R" to { writeToSsh(byteArrayOf(0x12)) },
+            "ESC" to sendRaw(byteArrayOf(0x1B)),
+            "TAB" to { sendKeyCode(KeyEvent.KEYCODE_TAB) },
+            "^C" to sendRaw(byteArrayOf(0x03)),
+            "^D" to sendRaw(byteArrayOf(0x04)),
+            "^J" to sendRaw(byteArrayOf(0x0A)),
+            "^R" to sendRaw(byteArrayOf(0x12)),
             "←" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_LEFT) },
             "↓" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_DOWN) },
             "↑" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_UP) },
             "→" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_RIGHT) },
         )
-        val marginPx = dpToPx(2)
-        val minWidthPx = dpToPx(44)
-        val minHeightPx = dpToPx(40)
         for ((label, action) in keys) {
-            val button = Button(this).apply {
-                text = label
-                isAllCaps = false
-                minWidth = minWidthPx
-                minimumWidth = minWidthPx
-                minHeight = minHeightPx
-                minimumHeight = minHeightPx
-                setPadding(dpToPx(8), 0, dpToPx(8), 0)
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
-                isFocusable = false
-                setOnClickListener {
-                    action()
-                    binding.terminalView.requestFocus()
-                }
-            }
-            val lp = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { setMargins(marginPx, marginPx, marginPx, marginPx) }
-            bar.addView(button, lp)
+            bar.addView(makeButton(label, action), layoutParams())
         }
+
+        shiftButton = makeButton("Shift") { setShiftSticky(!stickyShift) }
+            .also { styleModifierButton(it); bar.addView(it, layoutParams()) }
+        ctrlButton = makeButton("Ctrl") { setCtrlSticky(!stickyCtrl) }
+            .also { styleModifierButton(it); bar.addView(it, layoutParams()) }
+    }
+
+    private fun styleModifierButton(button: Button) {
+        button.background = ContextCompat.getDrawable(this, R.drawable.bg_aux_modifier)
+        ContextCompat.getColorStateList(this, R.color.aux_modifier_text)?.let {
+            button.setTextColor(it)
+        }
+    }
+
+    private fun setShiftSticky(on: Boolean) {
+        stickyShift = on
+        shiftButton?.isActivated = on
+    }
+
+    private fun setCtrlSticky(on: Boolean) {
+        stickyCtrl = on
+        ctrlButton?.isActivated = on
+    }
+
+    private fun clearStickyModifiers() {
+        if (stickyShift) setShiftSticky(false)
+        if (stickyCtrl) setCtrlSticky(false)
     }
 
     private fun sendKeyCode(keyCode: Int) {
         val emu = binding.terminalView.mEmulator
         val cursorApp = emu?.isCursorKeysApplicationMode == true
         val keypadApp = emu?.isKeypadApplicationMode == true
-        val code = KeyHandler.getCode(keyCode, 0, cursorApp, keypadApp) ?: return
+        var keyMod = 0
+        if (stickyShift) keyMod = keyMod or KeyHandler.KEYMOD_SHIFT
+        if (stickyCtrl) keyMod = keyMod or KeyHandler.KEYMOD_CTRL
+        val code = KeyHandler.getCode(keyCode, keyMod, cursorApp, keypadApp) ?: return
         writeToSsh(code.toByteArray(Charsets.UTF_8))
+        clearStickyModifiers()
     }
 
     private fun dpToPx(dp: Int): Int =
@@ -364,9 +411,20 @@ class TerminalActivity : AppCompatActivity() {
         override fun copyModeChanged(copyMode: Boolean) {}
         override fun onKeyUp(keyCode: Int, e: KeyEvent?): Boolean = false
         override fun onLongPress(event: MotionEvent?): Boolean = false
-        override fun readControlKey(): Boolean = false
+        // Sticky modifiers are consumed when read by the soft keyboard text path
+        // (TerminalView.sendTextToTerminal / inputCodePoint). Hardware key events
+        // go through our onKeyDown below, which clears sticky state explicitly.
+        override fun readControlKey(): Boolean {
+            val v = stickyCtrl
+            if (v) setCtrlSticky(false)
+            return v
+        }
         override fun readAltKey(): Boolean = false
-        override fun readShiftKey(): Boolean = false
+        override fun readShiftKey(): Boolean {
+            val v = stickyShift
+            if (v) setShiftSticky(false)
+            return v
+        }
         override fun readFnKey(): Boolean = false
         override fun onEmulatorSet() {}
 
@@ -377,6 +435,7 @@ class TerminalActivity : AppCompatActivity() {
             // Multi-character input (e.g., IME batch)
             if (event.action == KeyEvent.ACTION_MULTIPLE && keyCode == KeyEvent.KEYCODE_UNKNOWN) {
                 event.characters?.let { writeToSsh(it.toByteArray(Charsets.UTF_8)) }
+                clearStickyModifiers()
                 return true
             }
 
@@ -386,9 +445,9 @@ class TerminalActivity : AppCompatActivity() {
             }
 
             val metaState = event.metaState
-            val controlDown = event.isCtrlPressed
+            val controlDown = event.isCtrlPressed || stickyCtrl
             val leftAltDown = (metaState and KeyEvent.META_ALT_LEFT_ON) != 0
-            val shiftDown = event.isShiftPressed
+            val shiftDown = event.isShiftPressed || stickyShift
 
             var keyMod = 0
             if (controlDown) keyMod = keyMod or KeyHandler.KEYMOD_CTRL
@@ -404,6 +463,7 @@ class TerminalActivity : AppCompatActivity() {
                 )
                 if (code != null) {
                     writeToSsh(code.toByteArray(Charsets.UTF_8))
+                    clearStickyModifiers()
                     return true
                 }
             }
@@ -420,12 +480,16 @@ class TerminalActivity : AppCompatActivity() {
             if (result == 0) return false
 
             // Skip combining accents for now
-            if ((result and KeyCharacterMap.COMBINING_ACCENT) != 0) return true
+            if ((result and KeyCharacterMap.COMBINING_ACCENT) != 0) {
+                clearStickyModifiers()
+                return true
+            }
 
             var codePoint = fixBluetoothCodePoint(result)
             if (controlDown) codePoint = applyCtrl(codePoint)
 
             writeCodePointToSsh(codePoint, leftAltDown)
+            clearStickyModifiers()
             return true
         }
 

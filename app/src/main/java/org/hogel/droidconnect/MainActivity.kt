@@ -60,7 +60,7 @@ class MainActivity : AppCompatActivity() {
 
         binding.textVersion.text = "${BuildConfig.VERSION_NAME}-${BuildConfig.GIT_SHORT_REV}"
 
-        keyManager = SshKeyManager(this)
+        keyManager = SshKeyManager()
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
         restoreConnectionInput()

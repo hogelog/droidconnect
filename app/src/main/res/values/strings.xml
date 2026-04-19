@@ -17,7 +17,9 @@
     <string name="use_tmux_helper">Attach to an existing tmux session or create one, so the shell survives disconnects</string>
     <string name="public_key">Public Key</string>
     <string name="copy_public_key">Copy Public Key</string>
-    <string name="key_generated">Ed25519 key generated</string>
+    <string name="key_generated">SSH key generated</string>
+    <string name="biometric_prompt_title">Authorize SSH key</string>
+    <string name="biometric_prompt_subtitle">Confirm biometrics to sign the SSH authentication handshake</string>
     <string name="key_overwrite_title">Overwrite existing key?</string>
     <string name="key_overwrite_message">An SSH key already exists. Generating a new key will overwrite it, and any servers authorized with the current public key will no longer accept connections.</string>
     <string name="key_overwrite_confirm">Overwrite</string>

@@ -196,13 +196,20 @@ class TerminalActivity : AppCompatActivity() {
             }
         }
 
+        // Sends a raw byte sequence, clearing sticky modifiers (they don't
+        // meaningfully combine with preset ^X shortcuts or ESC).
+        fun sendRaw(bytes: ByteArray): () -> Unit = {
+            writeToSsh(bytes)
+            clearStickyModifiers()
+        }
+
         val keys: List<Pair<String, () -> Unit>> = listOf(
-            "ESC" to { writeToSsh(byteArrayOf(0x1B)) },
-            "TAB" to { writeToSsh(byteArrayOf(0x09)) },
-            "^C" to { writeToSsh(byteArrayOf(0x03)) },
-            "^D" to { writeToSsh(byteArrayOf(0x04)) },
-            "^J" to { writeToSsh(byteArrayOf(0x0A)) },
-            "^R" to { writeToSsh(byteArrayOf(0x12)) },
+            "ESC" to sendRaw(byteArrayOf(0x1B)),
+            "TAB" to { sendKeyCode(KeyEvent.KEYCODE_TAB) },
+            "^C" to sendRaw(byteArrayOf(0x03)),
+            "^D" to sendRaw(byteArrayOf(0x04)),
+            "^J" to sendRaw(byteArrayOf(0x0A)),
+            "^R" to sendRaw(byteArrayOf(0x12)),
             "←" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_LEFT) },
             "↓" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_DOWN) },
             "↑" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_UP) },
@@ -244,8 +251,12 @@ class TerminalActivity : AppCompatActivity() {
         val emu = binding.terminalView.mEmulator
         val cursorApp = emu?.isCursorKeysApplicationMode == true
         val keypadApp = emu?.isKeypadApplicationMode == true
-        val code = KeyHandler.getCode(keyCode, 0, cursorApp, keypadApp) ?: return
+        var keyMod = 0
+        if (stickyShift) keyMod = keyMod or KeyHandler.KEYMOD_SHIFT
+        if (stickyCtrl) keyMod = keyMod or KeyHandler.KEYMOD_CTRL
+        val code = KeyHandler.getCode(keyCode, keyMod, cursorApp, keypadApp) ?: return
         writeToSsh(code.toByteArray(Charsets.UTF_8))
+        clearStickyModifiers()
     }
 
     private fun dpToPx(dp: Int): Int =

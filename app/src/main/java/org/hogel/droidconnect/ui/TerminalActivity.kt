@@ -1,6 +1,7 @@
 package org.hogel.droidconnect.ui
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -11,6 +12,7 @@ import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
 import android.util.TypedValue
+import android.view.GestureDetector
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -32,6 +34,7 @@ import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
 import com.termux.view.TerminalViewClient
+import kotlin.math.abs
 
 /**
  * Terminal UI activity.
@@ -58,6 +61,9 @@ class TerminalActivity : AppCompatActivity() {
 
     private var fontSizePx = DEFAULT_FONT_SIZE_PX
     private val terminalPrefs by lazy { getSharedPreferences(PREFS_TERMINAL, Context.MODE_PRIVATE) }
+
+    // Vertical-drag accumulator for the scroll-to-SSH path (see setupTerminalScrollRouting).
+    private var scrollRemainderPx = 0f
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -144,6 +150,7 @@ class TerminalActivity : AppCompatActivity() {
         }
 
         setupTerminalView()
+        setupTerminalScrollRouting()
         setupAuxKeyBar()
 
         binding.btnDisconnect.setOnClickListener {
@@ -306,6 +313,62 @@ class TerminalActivity : AppCompatActivity() {
         terminalView.isFocusableInTouchMode = true
         terminalView.requestFocus()
         terminalView.post { showSoftKeyboard() }
+    }
+
+    /**
+     * Route vertical swipes into arrow-key bytes on the SSH stdin when the
+     * remote program is on the alternate screen buffer (tmux, vim, less, ...).
+     *
+     * TerminalView already converts swipes to arrow-key codes via doScroll, but
+     * it writes them to our dummy "sleep" [TerminalSession] — not to SSH — so
+     * nothing moves. We attach a parallel [GestureDetector] via OnTouchListener
+     * (return false so TerminalView still sees every event) and mirror Termux's
+     * row-delta logic using our own accumulator. The native scrollback path
+     * (mTopRow) continues to work untouched for non-alt-buffer shells.
+     */
+    @SuppressLint("ClickableViewAccessibility")
+    private fun setupTerminalScrollRouting() {
+        val detector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent): Boolean {
+                scrollRemainderPx = 0f
+                return false
+            }
+
+            override fun onScroll(
+                e1: MotionEvent?,
+                e2: MotionEvent,
+                distanceX: Float,
+                distanceY: Float,
+            ): Boolean {
+                // Ignore pinch gestures — font-size zoom is driven by onScale.
+                if (e2.pointerCount > 1) return false
+                val emu = binding.terminalView.mEmulator ?: return false
+                if (!emu.isAlternateBufferActive) return false
+                if (emu.isMouseTrackingActive) return false
+                val rows = emu.mRows
+                if (rows <= 0) return false
+                val lineHeight = binding.terminalView.height.toFloat() / rows
+                if (lineHeight <= 0f) return false
+                val total = distanceY + scrollRemainderPx
+                val deltaRows = (total / lineHeight).toInt()
+                scrollRemainderPx = total - deltaRows * lineHeight
+                if (deltaRows == 0) return false
+                val up = deltaRows < 0
+                val keyCode = if (up) KeyEvent.KEYCODE_DPAD_UP else KeyEvent.KEYCODE_DPAD_DOWN
+                val code = KeyHandler.getCode(
+                    keyCode, 0,
+                    emu.isCursorKeysApplicationMode,
+                    emu.isKeypadApplicationMode,
+                ) ?: return false
+                val bytes = code.toByteArray(Charsets.UTF_8)
+                repeat(abs(deltaRows)) { writeToSsh(bytes) }
+                return false
+            }
+        })
+        binding.terminalView.setOnTouchListener { _, event ->
+            detector.onTouchEvent(event)
+            false
+        }
     }
 
     private fun showSoftKeyboard() {

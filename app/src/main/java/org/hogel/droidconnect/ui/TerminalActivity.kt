@@ -69,6 +69,10 @@ class TerminalActivity : AppCompatActivity() {
     // its own `doScroll` doesn't emit a duplicate mouse/arrow sequence to the
     // dummy pty (which the kernel then echoes back into the screen buffer).
     private var handlingScrollGesture = false
+    // Set by the detector's onSingleTapUp when the gesture resolved as a tap
+    // (not a scroll / long-press). Consulted at ACTION_UP to decide whether to
+    // swallow the up-event and run our own keyboard toggle.
+    private var tappedThisGesture = false
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -345,8 +349,16 @@ class TerminalActivity : AppCompatActivity() {
      * Once we've claimed a vertical drag (case 1 or 2) the `OnTouchListener`
      * swallows the remaining events so `TerminalView` does not also run
      * `doScroll` into the dummy pty (which would echo the emulator-formatted
-     * mouse bytes back to the screen). For taps / pinches / native scrollback
-     * we leave events untouched.
+     * mouse bytes back to the screen).
+     *
+     * Taps are treated the same way while mouse tracking is active:
+     * `TerminalView.onUp` would emit `MOUSE_LEFT_BUTTON` press/release via
+     * `emulator.sendMouseEvent`, again echoing through the dummy pty as
+     * `^[[<0;x;yM^[[<0;x;ym…`. We swallow the tap-up, then do
+     * `requestFocus()` + `toggleSoftKeyboard()` ourselves so the user's
+     * existing tap-to-toggle-keyboard behavior is preserved.
+     *
+     * For pinches and for taps in plain-shell mode we leave events untouched.
      */
     @SuppressLint("ClickableViewAccessibility")
     private fun setupTerminalScrollRouting() {
@@ -354,6 +366,12 @@ class TerminalActivity : AppCompatActivity() {
             override fun onDown(e: MotionEvent): Boolean {
                 scrollRemainderPx = 0f
                 handlingScrollGesture = false
+                tappedThisGesture = false
+                return false
+            }
+
+            override fun onSingleTapUp(e: MotionEvent): Boolean {
+                tappedThisGesture = true
                 return false
             }
 
@@ -420,9 +438,34 @@ class TerminalActivity : AppCompatActivity() {
         })
         binding.terminalView.setOnTouchListener { _, event ->
             detector.onTouchEvent(event)
-            val consume = handlingScrollGesture
+            val inMouseTracking = binding.terminalView.mEmulator?.isMouseTrackingActive == true
+            val tapInMouseTracking = tappedThisGesture && inMouseTracking
+            val consume = handlingScrollGesture || tapInMouseTracking
             when (event.action) {
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> handlingScrollGesture = false
+                MotionEvent.ACTION_UP -> {
+                    if (consume) {
+                        // Replay the UP to TerminalView as a CANCEL so its
+                        // gesture detector resets (clears the long-press timer)
+                        // instead of being left hanging with a half-seen
+                        // gesture. CANCEL also bypasses the onUp path that
+                        // would otherwise emit MOUSE_LEFT_BUTTON press/release.
+                        val cancel = MotionEvent.obtain(event).apply {
+                            action = MotionEvent.ACTION_CANCEL
+                        }
+                        binding.terminalView.onTouchEvent(cancel)
+                        cancel.recycle()
+                    }
+                    if (tapInMouseTracking) {
+                        binding.terminalView.requestFocus()
+                        toggleSoftKeyboard()
+                    }
+                    handlingScrollGesture = false
+                    tappedThisGesture = false
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    handlingScrollGesture = false
+                    tappedThisGesture = false
+                }
             }
             consume
         }

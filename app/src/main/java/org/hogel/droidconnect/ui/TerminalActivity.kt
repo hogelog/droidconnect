@@ -323,10 +323,12 @@ class TerminalActivity : AppCompatActivity() {
      *
      * Three cases, mirroring Termux's own `doScroll` dispatch:
      *
-     * 1. Mouse tracking active (e.g. tmux `set -g mouse on`): emit an SGR
-     *    mouse-wheel sequence (`\e[<64;x;yM` up, `\e[<65;x;yM` down) per row
-     *    of drag. SGR (DECSET 1006) is the mouse protocol tmux/xterm-256color
-     *    negotiate by default, so we assume it unconditionally.
+     * 1. Mouse tracking active (e.g. tmux `set -g mouse on`): emit an xterm
+     *    classic mouse-wheel sequence (`\e[M<b+32><x+32><y+32>`) per row of
+     *    drag. We use the classic format instead of SGR because plain
+     *    `set -g mouse on` only advertises DECSET 1000/1002 — SGR (1006) is
+     *    opt-in, and if tmux is not in SGR mode it treats the `\e[<...M`
+     *    bytes as literal text (which was the first bug report).
      * 2. Alt buffer active but mouse tracking off (tmux with mouse off, vim,
      *    less): emit `DPAD_UP` / `DPAD_DOWN` key codes — what Termux does
      *    natively for the same case.
@@ -368,11 +370,17 @@ class TerminalActivity : AppCompatActivity() {
                     emu.isMouseTrackingActive -> {
                         val cols = emu.mColumns
                         val charWidth = if (cols > 0) binding.terminalView.width.toFloat() / cols else 0f
-                        val col = if (charWidth > 0f) (e2.x / charWidth).toInt() + 1 else 1
-                        val row = (e2.y / lineHeight).toInt() + 1
+                        val col = (if (charWidth > 0f) (e2.x / charWidth).toInt() + 1 else 1)
+                            .coerceIn(1, MOUSE_CLASSIC_COORD_MAX.coerceAtMost(cols.coerceAtLeast(1)))
+                        val row = ((e2.y / lineHeight).toInt() + 1)
+                            .coerceIn(1, MOUSE_CLASSIC_COORD_MAX.coerceAtMost(rows))
                         val button = if (up) WHEEL_UP_BUTTON else WHEEL_DOWN_BUTTON
-                        val seq = String.format("\u001b[<%d;%d;%dM", button, col.coerceIn(1, cols.coerceAtLeast(1)), row.coerceIn(1, rows))
-                        val bytes = seq.toByteArray(Charsets.UTF_8)
+                        val bytes = byteArrayOf(
+                            0x1B, '['.code.toByte(), 'M'.code.toByte(),
+                            (32 + button).toByte(),
+                            (32 + col).toByte(),
+                            (32 + row).toByte(),
+                        )
                         repeat(repeats) { writeToSsh(bytes) }
                     }
                     emu.isAlternateBufferActive -> {
@@ -642,8 +650,10 @@ class TerminalActivity : AppCompatActivity() {
         private const val KEY_FONT_SIZE_PX = "font_size_px"
         private const val TAG = "TerminalActivity"
 
-        // xterm/SGR mouse wheel button codes.
+        // xterm mouse wheel button codes.
         private const val WHEEL_UP_BUTTON = 64
         private const val WHEEL_DOWN_BUTTON = 65
+        // Classic (non-SGR) xterm mouse coords max out at (255 - 32) = 223.
+        private const val MOUSE_CLASSIC_COORD_MAX = 223
     }
 }

@@ -1,6 +1,7 @@
 package org.hogel.droidconnect.ui
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -11,6 +12,7 @@ import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
 import android.util.TypedValue
+import android.view.GestureDetector
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -32,6 +34,7 @@ import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
 import com.termux.view.TerminalViewClient
+import kotlin.math.abs
 
 /**
  * Terminal UI activity.
@@ -58,6 +61,9 @@ class TerminalActivity : AppCompatActivity() {
 
     private var fontSizePx = DEFAULT_FONT_SIZE_PX
     private val terminalPrefs by lazy { getSharedPreferences(PREFS_TERMINAL, Context.MODE_PRIVATE) }
+
+    // Vertical-drag accumulator for setupTerminalScrollRouting.
+    private var scrollRemainderPx = 0f
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -144,6 +150,7 @@ class TerminalActivity : AppCompatActivity() {
         }
 
         setupTerminalView()
+        setupTerminalScrollRouting()
         setupAuxKeyBar()
 
         binding.btnDisconnect.setOnClickListener {
@@ -306,6 +313,86 @@ class TerminalActivity : AppCompatActivity() {
         terminalView.isFocusableInTouchMode = true
         terminalView.requestFocus()
         terminalView.post { showSoftKeyboard() }
+    }
+
+    /**
+     * Route vertical swipes into bytes on the SSH stdin so scrolling works
+     * inside tmux / vim / less. Without this the finger drag still feeds
+     * `TerminalView.doScroll`, but every byte it emits is written to our dummy
+     * "sleep 86400" [TerminalSession] and never reaches the remote shell.
+     *
+     * Three cases, mirroring Termux's own `doScroll` dispatch:
+     *
+     * 1. Mouse tracking active (e.g. tmux `set -g mouse on`): emit an SGR
+     *    mouse-wheel sequence (`\e[<64;x;yM` up, `\e[<65;x;yM` down) per row
+     *    of drag. SGR (DECSET 1006) is the mouse protocol tmux/xterm-256color
+     *    negotiate by default, so we assume it unconditionally.
+     * 2. Alt buffer active but mouse tracking off (tmux with mouse off, vim,
+     *    less): emit `DPAD_UP` / `DPAD_DOWN` key codes — what Termux does
+     *    natively for the same case.
+     * 3. Otherwise: do nothing and let `TerminalView`'s native `mTopRow`
+     *    scrollback path handle the gesture.
+     *
+     * The listener returns false so `TerminalView` still processes every
+     * event (taps, long-press, scale, native scrollback).
+     */
+    @SuppressLint("ClickableViewAccessibility")
+    private fun setupTerminalScrollRouting() {
+        val detector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent): Boolean {
+                scrollRemainderPx = 0f
+                return false
+            }
+
+            override fun onScroll(
+                e1: MotionEvent?,
+                e2: MotionEvent,
+                distanceX: Float,
+                distanceY: Float,
+            ): Boolean {
+                // Ignore pinch gestures — font-size zoom is driven by onScale.
+                if (e2.pointerCount > 1) return false
+                val emu = binding.terminalView.mEmulator ?: return false
+                val rows = emu.mRows
+                if (rows <= 0) return false
+                val lineHeight = binding.terminalView.height.toFloat() / rows
+                if (lineHeight <= 0f) return false
+                val total = distanceY + scrollRemainderPx
+                val deltaRows = (total / lineHeight).toInt()
+                scrollRemainderPx = total - deltaRows * lineHeight
+                if (deltaRows == 0) return false
+
+                val up = deltaRows < 0
+                val repeats = abs(deltaRows)
+                when {
+                    emu.isMouseTrackingActive -> {
+                        val cols = emu.mColumns
+                        val charWidth = if (cols > 0) binding.terminalView.width.toFloat() / cols else 0f
+                        val col = if (charWidth > 0f) (e2.x / charWidth).toInt() + 1 else 1
+                        val row = (e2.y / lineHeight).toInt() + 1
+                        val button = if (up) WHEEL_UP_BUTTON else WHEEL_DOWN_BUTTON
+                        val seq = String.format("\u001b[<%d;%d;%dM", button, col.coerceIn(1, cols.coerceAtLeast(1)), row.coerceIn(1, rows))
+                        val bytes = seq.toByteArray(Charsets.UTF_8)
+                        repeat(repeats) { writeToSsh(bytes) }
+                    }
+                    emu.isAlternateBufferActive -> {
+                        val keyCode = if (up) KeyEvent.KEYCODE_DPAD_UP else KeyEvent.KEYCODE_DPAD_DOWN
+                        val code = KeyHandler.getCode(
+                            keyCode, 0,
+                            emu.isCursorKeysApplicationMode,
+                            emu.isKeypadApplicationMode,
+                        ) ?: return false
+                        val bytes = code.toByteArray(Charsets.UTF_8)
+                        repeat(repeats) { writeToSsh(bytes) }
+                    }
+                }
+                return false
+            }
+        })
+        binding.terminalView.setOnTouchListener { _, event ->
+            detector.onTouchEvent(event)
+            false
+        }
     }
 
     private fun showSoftKeyboard() {
@@ -554,5 +641,9 @@ class TerminalActivity : AppCompatActivity() {
         private const val PREFS_TERMINAL = "terminal"
         private const val KEY_FONT_SIZE_PX = "font_size_px"
         private const val TAG = "TerminalActivity"
+
+        // xterm/SGR mouse wheel button codes.
+        private const val WHEEL_UP_BUTTON = 64
+        private const val WHEEL_DOWN_BUTTON = 65
     }
 }

@@ -64,6 +64,11 @@ class TerminalActivity : AppCompatActivity() {
 
     // Vertical-drag accumulator for setupTerminalScrollRouting.
     private var scrollRemainderPx = 0f
+    // True between onDown and ACTION_UP/CANCEL whenever we have claimed a
+    // vertical drag. Used to swallow subsequent events from `TerminalView` so
+    // its own `doScroll` doesn't emit a duplicate mouse/arrow sequence to the
+    // dummy pty (which the kernel then echoes back into the screen buffer).
+    private var handlingScrollGesture = false
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -319,30 +324,36 @@ class TerminalActivity : AppCompatActivity() {
      * Route vertical swipes into bytes on the SSH stdin so scrolling works
      * inside tmux / vim / less. Without this the finger drag still feeds
      * `TerminalView.doScroll`, but every byte it emits is written to our dummy
-     * "sleep 86400" [TerminalSession] and never reaches the remote shell.
+     * "sleep 86400" [TerminalSession] and never reaches the remote shell — and
+     * because that session's pty has echo on by default, bytes it writes come
+     * straight back out as visible text in the screen buffer.
      *
      * Three cases, mirroring Termux's own `doScroll` dispatch:
      *
      * 1. Mouse tracking active (e.g. tmux `set -g mouse on`): emit an xterm
-     *    classic mouse-wheel sequence (`\e[M<b+32><x+32><y+32>`) per row of
-     *    drag. We use the classic format instead of SGR because plain
-     *    `set -g mouse on` only advertises DECSET 1000/1002 — SGR (1006) is
-     *    opt-in, and if tmux is not in SGR mode it treats the `\e[<...M`
-     *    bytes as literal text (which was the first bug report).
+     *    classic mouse-wheel sequence (`\e[M<b+32><x+32><y+32>`) per
+     *    [SCROLL_LINES_PER_WHEEL] rows of drag. We use the classic format
+     *    instead of SGR because plain `set -g mouse on` only advertises
+     *    DECSET 1000/1002 — SGR (1006) is opt-in, and if tmux is not in SGR
+     *    mode it treats the `\e[<...M` bytes as literal text.
      * 2. Alt buffer active but mouse tracking off (tmux with mouse off, vim,
      *    less): emit `DPAD_UP` / `DPAD_DOWN` key codes — what Termux does
      *    natively for the same case.
      * 3. Otherwise: do nothing and let `TerminalView`'s native `mTopRow`
      *    scrollback path handle the gesture.
      *
-     * The listener returns false so `TerminalView` still processes every
-     * event (taps, long-press, scale, native scrollback).
+     * Once we've claimed a vertical drag (case 1 or 2) the `OnTouchListener`
+     * swallows the remaining events so `TerminalView` does not also run
+     * `doScroll` into the dummy pty (which would echo the emulator-formatted
+     * mouse bytes back to the screen). For taps / pinches / native scrollback
+     * we leave events untouched.
      */
     @SuppressLint("ClickableViewAccessibility")
     private fun setupTerminalScrollRouting() {
         val detector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDown(e: MotionEvent): Boolean {
                 scrollRemainderPx = 0f
+                handlingScrollGesture = false
                 return false
             }
 
@@ -357,15 +368,23 @@ class TerminalActivity : AppCompatActivity() {
                 val emu = binding.terminalView.mEmulator ?: return false
                 val rows = emu.mRows
                 if (rows <= 0) return false
+                // Leave the plain-shell scrollback path to `TerminalView`.
+                if (!emu.isMouseTrackingActive && !emu.isAlternateBufferActive) return false
+
                 val lineHeight = binding.terminalView.height.toFloat() / rows
                 if (lineHeight <= 0f) return false
+                val step = lineHeight * SCROLL_LINES_PER_WHEEL
+                // From this point on we own the gesture even if we end up
+                // emitting zero bytes this frame — otherwise TerminalView would
+                // pick up the leftover motion and scroll the dummy pty.
+                handlingScrollGesture = true
                 val total = distanceY + scrollRemainderPx
-                val deltaRows = (total / lineHeight).toInt()
-                scrollRemainderPx = total - deltaRows * lineHeight
-                if (deltaRows == 0) return false
+                val deltaWheels = (total / step).toInt()
+                scrollRemainderPx = total - deltaWheels * step
+                if (deltaWheels == 0) return true
 
-                val up = deltaRows < 0
-                val repeats = abs(deltaRows)
+                val up = deltaWheels < 0
+                val repeats = abs(deltaWheels)
                 when {
                     emu.isMouseTrackingActive -> {
                         val cols = emu.mColumns
@@ -389,17 +408,23 @@ class TerminalActivity : AppCompatActivity() {
                             keyCode, 0,
                             emu.isCursorKeysApplicationMode,
                             emu.isKeypadApplicationMode,
-                        ) ?: return false
-                        val bytes = code.toByteArray(Charsets.UTF_8)
-                        repeat(repeats) { writeToSsh(bytes) }
+                        )
+                        if (code != null) {
+                            val bytes = code.toByteArray(Charsets.UTF_8)
+                            repeat(repeats) { writeToSsh(bytes) }
+                        }
                     }
                 }
-                return false
+                return true
             }
         })
         binding.terminalView.setOnTouchListener { _, event ->
             detector.onTouchEvent(event)
-            false
+            val consume = handlingScrollGesture
+            when (event.action) {
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> handlingScrollGesture = false
+            }
+            consume
         }
     }
 
@@ -655,5 +680,9 @@ class TerminalActivity : AppCompatActivity() {
         private const val WHEEL_DOWN_BUTTON = 65
         // Classic (non-SGR) xterm mouse coords max out at (255 - 32) = 223.
         private const val MOUSE_CLASSIC_COORD_MAX = 223
+        // Emit one wheel event per this many rows of finger travel. tmux's
+        // default response to a wheel event is three lines, so stepping every
+        // two rows works out to a comfortable ~1.5× amplification.
+        private const val SCROLL_LINES_PER_WHEEL = 2f
     }
 }

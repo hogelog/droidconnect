@@ -2,6 +2,8 @@ package org.hogel.droidconnect.ui
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -485,6 +487,47 @@ class TerminalActivity : AppCompatActivity() {
         service?.writeToSsh(data)
     }
 
+    private fun copySelectedTextToClipboard(text: String?) {
+        if (text.isNullOrEmpty()) return
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText("droidconnect", text))
+    }
+
+    // Bytes go to SSH stdin, not the dummy TerminalSession, so we can't
+    // delegate to TerminalEmulator.paste() (it writes via mSession.write).
+    // Sanitize and bracket-wrap the same way it does.
+    private fun pasteClipboardToSsh() {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = clipboard.primaryClip ?: return
+        if (clip.itemCount == 0) return
+        val raw = clip.getItemAt(0).coerceToText(this).toString()
+        if (raw.isEmpty()) return
+
+        val sanitized = raw
+            .replace(Regex("[\u001B\u0080-\u009F]"), "")
+            .replace(Regex("\r?\n"), "\r")
+        if (sanitized.isEmpty()) return
+
+        val bracketed = isBracketedPasteActive()
+        if (bracketed) writeToSsh(BRACKETED_PASTE_START)
+        writeToSsh(sanitized.toByteArray(Charsets.UTF_8))
+        if (bracketed) writeToSsh(BRACKETED_PASTE_END)
+    }
+
+    // TerminalEmulator has no public getter for DECSET 2004; reach in via
+    // reflection. Submodule is pinned, so the private name is stable.
+    private fun isBracketedPasteActive(): Boolean {
+        val emulator = binding.terminalView.mEmulator ?: return false
+        return try {
+            val method = TerminalEmulator::class.java
+                .getDeclaredMethod("isDecsetInternalBitSet", Int::class.javaPrimitiveType)
+            method.isAccessible = true
+            method.invoke(emulator, DECSET_BIT_BRACKETED_PASTE_MODE) as? Boolean == true
+        } catch (_: ReflectiveOperationException) {
+            false
+        }
+    }
+
     private fun writeCodePointToSsh(codePoint: Int, prependEscape: Boolean) {
         val buf = ByteArray(5)
         var pos = 0
@@ -551,8 +594,12 @@ class TerminalActivity : AppCompatActivity() {
         }
         override fun onTitleChanged(changedSession: TerminalSession) {}
         override fun onSessionFinished(finishedSession: TerminalSession) {}
-        override fun onCopyTextToClipboard(session: TerminalSession, text: String?) {}
-        override fun onPasteTextFromClipboard(session: TerminalSession?) {}
+        override fun onCopyTextToClipboard(session: TerminalSession, text: String?) {
+            copySelectedTextToClipboard(text)
+        }
+        override fun onPasteTextFromClipboard(session: TerminalSession?) {
+            pasteClipboardToSsh()
+        }
         override fun onBell(session: TerminalSession) {}
         override fun onColorsChanged(session: TerminalSession) {}
         override fun onTerminalCursorStateChange(state: Boolean) {}
@@ -717,6 +764,11 @@ class TerminalActivity : AppCompatActivity() {
         private const val PREFS_TERMINAL = "terminal"
         private const val KEY_FONT_SIZE_PX = "font_size_px"
         private const val TAG = "TerminalActivity"
+
+        // Mirrors termux's private DECSET_BIT_BRACKETED_PASTE_MODE (DECSET 2004).
+        private const val DECSET_BIT_BRACKETED_PASTE_MODE = 1 shl 10
+        private val BRACKETED_PASTE_START = byteArrayOf(0x1B, '['.code.toByte(), '2'.code.toByte(), '0'.code.toByte(), '0'.code.toByte(), '~'.code.toByte())
+        private val BRACKETED_PASTE_END = byteArrayOf(0x1B, '['.code.toByte(), '2'.code.toByte(), '0'.code.toByte(), '1'.code.toByte(), '~'.code.toByte())
 
         // xterm mouse wheel button codes.
         private const val WHEEL_UP_BUTTON = 64

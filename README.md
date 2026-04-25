@@ -27,6 +27,37 @@ git submodule update --init --recursive
 
 The debug APK will be produced at `app/build/outputs/apk/debug/app-debug.apk`.
 
+### Release build (signed AAB for Play Console)
+
+1. Generate a release keystore once (keep the file outside the repo):
+
+   ```bash
+   keytool -genkeypair -v \
+     -keystore ~/.android/droidconnect-release.jks \
+     -keyalg RSA -keysize 2048 -validity 10000 \
+     -alias droidconnect
+   ```
+
+2. Provide the credentials via environment variables (or the equivalent
+   `RELEASE_KEYSTORE_FILE`/`RELEASE_KEYSTORE_PASSWORD`/`RELEASE_KEY_ALIAS`/`RELEASE_KEY_PASSWORD`
+   entries in `~/.gradle/gradle.properties`):
+
+   ```bash
+   export RELEASE_KEYSTORE_FILE=$HOME/.android/droidconnect-release.jks
+   export RELEASE_KEYSTORE_PASSWORD=...
+   export RELEASE_KEY_ALIAS=droidconnect
+   export RELEASE_KEY_PASSWORD=...
+   ```
+
+3. Build the signed app bundle:
+
+   ```bash
+   ./gradlew bundleRelease
+   ```
+
+   The AAB lands at `app/build/outputs/bundle/release/app-release.aab` and can
+   be uploaded to the Play Console.
+
 ## License
 
 GPLv3 - See [LICENSE](LICENSE)

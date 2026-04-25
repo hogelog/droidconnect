@@ -75,7 +75,14 @@ class SshSession(
 
         val inner = if (useTmux) {
             buildString {
-                append("tmux new-session -A -s ")
+                // Configure tmux to broadcast the active pane's foreground
+                // command as the OSC window title so the client can detect the
+                // running app and surface app-specific shortcut keys. Chained
+                // into one tmux invocation so the options apply to the same
+                // server we then attach to.
+                append("tmux set-option -g set-titles on \\; ")
+                append("set-option -g set-titles-string \"#{pane_current_command}\" \\; ")
+                append("new-session -A -s ")
                 append(TMUX_SESSION_NAME)
                 if (trimmed != null) {
                     append(' ')

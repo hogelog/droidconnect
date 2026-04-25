@@ -193,30 +193,6 @@ class TerminalActivity : AppCompatActivity() {
 
     private fun setupAuxKeyBar() {
         val bar = binding.auxKeyBar
-        val marginPx = dpToPx(2)
-        val minWidthPx = dpToPx(44)
-        val minHeightPx = dpToPx(40)
-
-        fun layoutParams() = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-        ).apply { setMargins(marginPx, marginPx, marginPx, marginPx) }
-
-        fun makeButton(label: String, action: () -> Unit): Button = Button(this).apply {
-            text = label
-            isAllCaps = false
-            minWidth = minWidthPx
-            minimumWidth = minWidthPx
-            minHeight = minHeightPx
-            minimumHeight = minHeightPx
-            setPadding(dpToPx(8), 0, dpToPx(8), 0)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
-            isFocusable = false
-            setOnClickListener {
-                action()
-                binding.terminalView.requestFocus()
-            }
-        }
 
         // Sends a raw byte sequence, clearing sticky modifiers (they don't
         // meaningfully combine with preset ^X shortcuts or ESC).
@@ -238,13 +214,89 @@ class TerminalActivity : AppCompatActivity() {
             "→" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_RIGHT) },
         )
         for ((label, action) in keys) {
-            bar.addView(makeButton(label, action), layoutParams())
+            bar.addView(makeAuxButton(label, action), auxButtonLayoutParams())
         }
 
-        shiftButton = makeButton("Shift") { setShiftSticky(!stickyShift) }
-            .also { styleModifierButton(it); bar.addView(it, layoutParams()) }
-        ctrlButton = makeButton("Ctrl") { setCtrlSticky(!stickyCtrl) }
-            .also { styleModifierButton(it); bar.addView(it, layoutParams()) }
+        shiftButton = makeAuxButton("Shift") { setShiftSticky(!stickyShift) }
+            .also { styleModifierButton(it); bar.addView(it, auxButtonLayoutParams()) }
+        ctrlButton = makeAuxButton("Ctrl") { setCtrlSticky(!stickyCtrl) }
+            .also { styleModifierButton(it); bar.addView(it, auxButtonLayoutParams()) }
+    }
+
+    private fun auxButtonLayoutParams(): LinearLayout.LayoutParams {
+        val marginPx = dpToPx(2)
+        return LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+        ).apply { setMargins(marginPx, marginPx, marginPx, marginPx) }
+    }
+
+    private fun makeAuxButton(label: String, action: () -> Unit): Button = Button(this).apply {
+        val minWidthPx = dpToPx(44)
+        val minHeightPx = dpToPx(40)
+        text = label
+        isAllCaps = false
+        minWidth = minWidthPx
+        minimumWidth = minWidthPx
+        minHeight = minHeightPx
+        minimumHeight = minHeightPx
+        setPadding(dpToPx(8), 0, dpToPx(8), 0)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+        isFocusable = false
+        setOnClickListener {
+            action()
+            binding.terminalView.requestFocus()
+        }
+    }
+
+    /**
+     * Rebuild the context shortcut bar above the static aux key bar based on
+     * the active tmux pane's foreground command (delivered as the OSC window
+     * title once `tmux set -g set-titles on` is in effect; configured by
+     * [SshSession]). If [app] doesn't match a known shortcut set the bar is
+     * hidden so it doesn't take up screen space.
+     */
+    private fun applyAppContext(app: String?) {
+        val normalized = app?.trim()?.lowercase()
+        val shortcuts = contextShortcutsFor(normalized)
+        val bar = binding.contextKeyBar
+        bar.removeAllViews()
+        if (shortcuts.isEmpty()) {
+            binding.contextKeyScroll.visibility = android.view.View.GONE
+            return
+        }
+        for ((label, action) in shortcuts) {
+            bar.addView(makeAuxButton(label, action), auxButtonLayoutParams())
+        }
+        binding.contextKeyScroll.visibility = android.view.View.VISIBLE
+    }
+
+    private fun contextShortcutsFor(app: String?): List<Pair<String, () -> Unit>> {
+        // Sends a literal UTF-8 string to the remote. Used for command stubs
+        // the user can finish typing (no trailing newline).
+        fun sendText(text: String): () -> Unit = {
+            writeToSsh(text.toByteArray(Charsets.UTF_8))
+            clearStickyModifiers()
+        }
+        // Sends raw bytes verbatim. Used for sending control sequences (e.g.,
+        // /clear + Enter, or CSI Z for back-tab).
+        fun sendBytes(bytes: ByteArray): () -> Unit = {
+            writeToSsh(bytes)
+            clearStickyModifiers()
+        }
+        return when (app) {
+            // Claude Code starts a Node process; pane_current_command is most
+            // commonly "node". "claude" / "claude-code" cover wrapper scripts.
+            "claude", "claude-code", "node" -> listOf(
+                "/clear" to sendBytes("/clear\r".toByteArray(Charsets.UTF_8)),
+                "⇧Tab" to sendBytes(byteArrayOf(0x1B, '['.code.toByte(), 'Z'.code.toByte())),
+            )
+            "bash", "zsh", "sh", "fish" -> listOf(
+                "claude-code --enable-auto-mode" to sendText("claude-code --enable-auto-mode"),
+                "cd " to sendText("cd "),
+            )
+            else -> emptyList()
+        }
     }
 
     private fun styleModifierButton(button: Button) {
@@ -592,7 +644,9 @@ class TerminalActivity : AppCompatActivity() {
         override fun onTextChanged(changedSession: TerminalSession) {
             binding.terminalView.invalidate()
         }
-        override fun onTitleChanged(changedSession: TerminalSession) {}
+        override fun onTitleChanged(changedSession: TerminalSession) {
+            applyAppContext(changedSession.title)
+        }
         override fun onSessionFinished(finishedSession: TerminalSession) {}
         override fun onCopyTextToClipboard(session: TerminalSession, text: String?) {
             copySelectedTextToClipboard(text)

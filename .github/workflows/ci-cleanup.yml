@@ -24,3 +24,36 @@ jobs:
                 echo "Deleting old CI prerelease ${TAG}"
                 gh release delete "$TAG" --yes --cleanup-tag
               done
+
+  prune-deploygate-binaries:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prune old DeployGate binaries (keep latest 5)
+        env:
+          DEPLOYGATE_API_KEY: ${{ secrets.DEPLOYGATE_API_KEY }}
+          DEPLOYGATE_USER_NAME: ${{ secrets.DEPLOYGATE_USER_NAME }}
+          PACKAGE: org.hogel.droidconnect
+          KEEP: 5
+        run: |
+          set -euo pipefail
+          BASE="https://deploygate.com/api/users/${DEPLOYGATE_USER_NAME}/platforms/android/apps/${PACKAGE}/binaries"
+          REVS="$(mktemp)"
+          PAGE=1
+          while :; do
+            RESP="$(curl -sSL --fail-with-body \
+              -H "Authorization: Bearer ${DEPLOYGATE_API_KEY}" \
+              "${BASE}?page=${PAGE}")"
+            echo "$RESP" | jq -r '(.results.entries // .entries // [])[].revision' >> "$REVS"
+            TOTAL_PAGES="$(echo "$RESP" | jq -r '(.results.total_pages // .total_pages // 1)')"
+            [ "$PAGE" -ge "$TOTAL_PAGES" ] && break
+            PAGE=$((PAGE + 1))
+          done
+          sort -nr "$REVS" | tail -n +$((KEEP + 1)) | while read -r REV; do
+            [ -z "$REV" ] && continue
+            echo "Deleting old DeployGate revision ${REV}"
+            STATUS="$(curl -sSL -o /dev/null -w '%{http_code}' \
+              -X DELETE \
+              -H "Authorization: Bearer ${DEPLOYGATE_API_KEY}" \
+              "${BASE}/${REV}")"
+            echo "  HTTP ${STATUS}"
+          done

@@ -290,7 +290,7 @@ class TerminalActivity : AppCompatActivity() {
                 "⇧Tab" to sendBytes(byteArrayOf(0x1B, '['.code.toByte(), 'Z'.code.toByte())),
             )
             "bash", "zsh", "sh", "fish" -> listOf(
-                "claude-code" to sendText("claude-code"),
+                "claude" to sendText("claude"),
                 "cd " to sendText("cd "),
             )
             else -> emptyList()

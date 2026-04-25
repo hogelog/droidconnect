@@ -69,12 +69,27 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        create("release") {
+            // Optional so debug builds work without release credentials.
+            val keystorePath = findProperty("RELEASE_KEYSTORE_FILE") as String?
+                ?: System.getenv("RELEASE_KEYSTORE_FILE")
+            if (keystorePath != null) {
+                storeFile = file(keystorePath)
+                storePassword = (findProperty("RELEASE_KEYSTORE_PASSWORD") as String?)
+                    ?: System.getenv("RELEASE_KEYSTORE_PASSWORD")
+                keyAlias = (findProperty("RELEASE_KEY_ALIAS") as String?)
+                    ?: System.getenv("RELEASE_KEY_ALIAS")
+                keyPassword = (findProperty("RELEASE_KEY_PASSWORD") as String?)
+                    ?: System.getenv("RELEASE_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 

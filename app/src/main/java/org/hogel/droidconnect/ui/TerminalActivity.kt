@@ -292,7 +292,7 @@ class TerminalActivity : AppCompatActivity() {
                 "⇧Tab" to sendBytes(byteArrayOf(0x1B, '['.code.toByte(), 'Z'.code.toByte())),
             )
             "bash", "zsh", "sh", "fish" -> listOf(
-                "claude-code --enable-auto-mode" to sendText("claude-code --enable-auto-mode"),
+                "claude-code" to sendText("claude-code"),
                 "cd " to sendText("cd "),
             )
             else -> emptyList()

@@ -74,7 +74,8 @@ jobs:
             --target "${HEAD_SHA}" \
             "$APK_NAME"
 
-      - env:
+      - name: Upload to DeployGate
+        env:
           DEPLOYGATE_API_KEY: ${{ secrets.DEPLOYGATE_API_KEY }}
           DEPLOYGATE_USER_NAME: ${{ secrets.DEPLOYGATE_USER_NAME }}
           HEAD_SHA: ${{ github.sha }}

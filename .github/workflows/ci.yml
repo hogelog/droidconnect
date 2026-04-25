@@ -135,7 +135,8 @@ jobs:
           - APK: \`${APK_NAME}\`
           - Revision: \`${HEAD_SHA}\`"
 
-      - env:
+      - name: Upload to DeployGate
+        env:
           DEPLOYGATE_API_KEY: ${{ secrets.DEPLOYGATE_API_KEY }}
           DEPLOYGATE_USER_NAME: ${{ secrets.DEPLOYGATE_USER_NAME }}
           PR_NUMBER: ${{ github.event.pull_request.number }}

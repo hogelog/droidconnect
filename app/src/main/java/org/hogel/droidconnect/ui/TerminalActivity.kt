@@ -208,10 +208,8 @@ class TerminalActivity : AppCompatActivity() {
             "^D" to sendRaw(byteArrayOf(0x04)),
             "^J" to sendRaw(byteArrayOf(0x0A)),
             "^R" to sendRaw(byteArrayOf(0x12)),
-            "←" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_LEFT) },
             "↓" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_DOWN) },
             "↑" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_UP) },
-            "→" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_RIGHT) },
         )
         for ((label, action) in keys) {
             bar.addView(makeAuxButton(label, action), auxButtonLayoutParams())

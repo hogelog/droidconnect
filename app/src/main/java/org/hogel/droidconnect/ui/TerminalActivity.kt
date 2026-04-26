@@ -226,13 +226,19 @@ class TerminalActivity : AppCompatActivity() {
             "^R" to sendRaw(byteArrayOf(0x12)),
             "↓" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_DOWN) },
             "↑" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_UP) },
-            "Sel" to ::startTextSelection,
             "^C" to sendRaw(byteArrayOf(0x03)),
             "^D" to sendRaw(byteArrayOf(0x04)),
         )
         for ((label, action) in keys) {
             bar.addView(makeAuxButton(label, action), auxButtonLayoutParams())
         }
+
+        // Sel sits permanently on the right end of the upper row so it stays
+        // reachable regardless of which app context is active.
+        binding.contextRightBar.addView(
+            makeAuxButton("Sel", ::startTextSelection),
+            auxButtonLayoutParams(),
+        )
     }
 
     private fun auxButtonLayoutParams(): LinearLayout.LayoutParams {
@@ -265,22 +271,17 @@ class TerminalActivity : AppCompatActivity() {
      * Rebuild the context shortcut bar above the static aux key bar based on
      * the active tmux pane's foreground command (delivered as the OSC window
      * title once `tmux set -g set-titles on` is in effect; configured by
-     * [SshSession]). If [app] doesn't match a known shortcut set the bar is
-     * hidden so it doesn't take up screen space.
+     * [SshSession]). The row itself stays visible regardless of [app] because
+     * the Sel button anchored on the right end belongs to it.
      */
     private fun applyAppContext(app: String?) {
         val normalized = app?.trim()?.lowercase()
         val shortcuts = contextShortcutsFor(normalized)
         val bar = binding.contextKeyBar
         bar.removeAllViews()
-        if (shortcuts.isEmpty()) {
-            binding.contextKeyScroll.visibility = android.view.View.GONE
-            return
-        }
         for ((label, action) in shortcuts) {
             bar.addView(makeAuxButton(label, action), auxButtonLayoutParams())
         }
-        binding.contextKeyScroll.visibility = android.view.View.VISIBLE
     }
 
     private fun contextShortcutsFor(app: String?): List<Pair<String, () -> Unit>> {
@@ -752,8 +753,8 @@ class TerminalActivity : AppCompatActivity() {
         // startTextSelectionMode() so the Copy/Paste/More floating toolbar
         // never appears from a misfired long-press timer (a 500 ms hold
         // with no movement, which is easy to hit at the start of a slow
-        // swipe). Selection is started explicitly from the aux bar's "Sel"
-        // button via startTextSelection().
+        // swipe). Selection is started explicitly from the "Sel" button on
+        // the right end of the context row via startTextSelection().
         override fun onLongPress(event: MotionEvent?): Boolean = true
         // Sticky modifiers are consumed when read by the soft keyboard text path
         // (TerminalView.sendTextToTerminal / inputCodePoint). Hardware key events

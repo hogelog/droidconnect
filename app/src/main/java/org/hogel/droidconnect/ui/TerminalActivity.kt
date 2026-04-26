@@ -12,6 +12,7 @@ import android.content.pm.PackageManager
 import android.graphics.Typeface
 import android.os.Bundle
 import android.os.IBinder
+import android.os.SystemClock
 import android.util.Log
 import android.util.TypedValue
 import android.view.GestureDetector
@@ -228,6 +229,7 @@ class TerminalActivity : AppCompatActivity() {
             "^R" to sendRaw(byteArrayOf(0x12)),
             "↓" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_DOWN) },
             "↑" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_UP) },
+            "Sel" to ::startTextSelection,
         )
         for ((label, action) in keys) {
             bar.addView(makeAuxButton(label, action), auxButtonLayoutParams())
@@ -330,6 +332,33 @@ class TerminalActivity : AppCompatActivity() {
     private fun clearStickyModifiers() {
         if (stickyShift) setShiftSticky(false)
         if (stickyCtrl) setCtrlSticky(false)
+    }
+
+    /**
+     * Enter termux's text selection mode (the Copy/Paste/More floating
+     * toolbar) anchored at the centre of the terminal view. The user can
+     * drag the selection handles from there. We trigger this from an aux
+     * bar button instead of long-press because the GestureDetector's
+     * long-press timer fires too easily during slow swipe starts.
+     */
+    private fun startTextSelection() {
+        val terminalView = binding.terminalView
+        val emulator = terminalView.mEmulator ?: return
+        if (emulator.mColumns <= 0 || emulator.mRows <= 0) return
+        if (terminalView.width <= 0 || terminalView.height <= 0) return
+        val now = SystemClock.uptimeMillis()
+        val event = MotionEvent.obtain(
+            now, now,
+            MotionEvent.ACTION_DOWN,
+            terminalView.width / 2f,
+            terminalView.height / 2f,
+            0,
+        )
+        try {
+            terminalView.startTextSelectionMode(event)
+        } finally {
+            event.recycle()
+        }
     }
 
     private fun sendKeyCode(keyCode: Int) {
@@ -719,7 +748,13 @@ class TerminalActivity : AppCompatActivity() {
         override fun isTerminalViewSelected(): Boolean = false
         override fun copyModeChanged(copyMode: Boolean) {}
         override fun onKeyUp(keyCode: Int, e: KeyEvent?): Boolean = false
-        override fun onLongPress(event: MotionEvent?): Boolean = false
+        // Returning true suppresses termux's default
+        // startTextSelectionMode() so the Copy/Paste/More floating toolbar
+        // never appears from a misfired long-press timer (a 500 ms hold
+        // with no movement, which is easy to hit at the start of a slow
+        // swipe). Selection is started explicitly from the aux bar's "Sel"
+        // button via startTextSelection().
+        override fun onLongPress(event: MotionEvent?): Boolean = true
         // Sticky modifiers are consumed when read by the soft keyboard text path
         // (TerminalView.sendTextToTerminal / inputCodePoint). Hardware key events
         // go through our onKeyDown below, which clears sticky state explicitly.

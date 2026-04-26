@@ -263,7 +263,7 @@ class TerminalActivity : AppCompatActivity() {
         isFocusable = false
         setOnClickListener {
             action()
-            binding.terminalView.requestFocus()
+            binding.imeProxy.requestFocus()
         }
     }
 
@@ -362,6 +362,79 @@ class TerminalActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Translate a hardware (or IME-synthesised) key event into bytes on the
+     * SSH stdin, honouring sticky modifiers and the emulator's current
+     * cursor/keypad application modes. Returns true when the event was
+     * consumed.
+     *
+     * Lifted from the original `viewClient.onKeyDown` body so it can be
+     * driven by the IME proxy view as well as by Termux's terminal view.
+     */
+    private fun processHardwareKey(keyCode: Int, event: KeyEvent): Boolean {
+        val emu = binding.terminalView.mEmulator ?: return false
+
+        // Multi-character input (e.g., IME batch)
+        if (event.action == KeyEvent.ACTION_MULTIPLE && keyCode == KeyEvent.KEYCODE_UNKNOWN) {
+            event.characters?.let { writeToSsh(it.toByteArray(Charsets.UTF_8)) }
+            clearStickyModifiers()
+            return true
+        }
+
+        // Let system keys through (except back → escape)
+        if (event.isSystem && keyCode != KeyEvent.KEYCODE_BACK) {
+            return false
+        }
+
+        val metaState = event.metaState
+        val controlDown = event.isCtrlPressed || stickyCtrl
+        val leftAltDown = (metaState and KeyEvent.META_ALT_LEFT_ON) != 0
+        val shiftDown = event.isShiftPressed || stickyShift
+
+        var keyMod = 0
+        if (controlDown) keyMod = keyMod or KeyHandler.KEYMOD_CTRL
+        if (event.isAltPressed || leftAltDown) keyMod = keyMod or KeyHandler.KEYMOD_ALT
+        if (shiftDown) keyMod = keyMod or KeyHandler.KEYMOD_SHIFT
+        if (event.isNumLockOn) keyMod = keyMod or KeyHandler.KEYMOD_NUM_LOCK
+
+        if (!event.isFunctionPressed) {
+            val code = KeyHandler.getCode(
+                keyCode, keyMod,
+                emu.isCursorKeysApplicationMode,
+                emu.isKeypadApplicationMode
+            )
+            if (code != null) {
+                writeToSsh(code.toByteArray(Charsets.UTF_8))
+                clearStickyModifiers()
+                return true
+            }
+        }
+
+        val rightAltDown = (metaState and KeyEvent.META_ALT_RIGHT_ON) != 0
+        var bitsToClear = KeyEvent.META_CTRL_MASK
+        if (!rightAltDown) {
+            bitsToClear = bitsToClear or KeyEvent.META_ALT_ON or KeyEvent.META_ALT_LEFT_ON
+        }
+        var effectiveMetaState = metaState and bitsToClear.inv()
+        if (shiftDown) effectiveMetaState = effectiveMetaState or KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
+
+        val result = event.getUnicodeChar(effectiveMetaState)
+        if (result == 0) return false
+
+        // Skip combining accents for now
+        if ((result and KeyCharacterMap.COMBINING_ACCENT) != 0) {
+            clearStickyModifiers()
+            return true
+        }
+
+        var codePoint = fixBluetoothCodePoint(result)
+        if (controlDown) codePoint = applyCtrl(codePoint)
+
+        writeCodePointToSsh(codePoint, leftAltDown)
+        clearStickyModifiers()
+        return true
+    }
+
     private fun sendKeyCode(keyCode: Int) {
         val emu = binding.terminalView.mEmulator
         val cursorApp = emu?.isCursorKeysApplicationMode == true
@@ -410,13 +483,14 @@ class TerminalActivity : AppCompatActivity() {
         terminalView.attachSession(dummySession)
         terminalView.setTerminalViewClient(viewClient)
 
-        // Termux's TerminalView does not set these flags itself, so requestFocus
-        // silently fails and the IME has no view to deliver input to — keyboard
-        // shows but typed characters go nowhere. Enable focus before requesting.
-        terminalView.isFocusable = true
-        terminalView.isFocusableInTouchMode = true
-        terminalView.requestFocus()
-        terminalView.post { showSoftKeyboard() }
+        // IME focus lives on the proxy view (see ImeProxyView), not on the
+        // terminal itself. The terminal still receives touches because the
+        // proxy sits below it in the FrameLayout and is non-clickable.
+        terminalView.isFocusable = false
+        terminalView.isFocusableInTouchMode = false
+        wireImeProxy()
+        binding.imeProxy.requestFocus()
+        binding.imeProxy.post { showSoftKeyboard() }
 
         // The activity uses windowSoftInputMode="adjustResize", so showing or
         // hiding the soft keyboard shrinks/grows the TerminalView, which in
@@ -426,6 +500,38 @@ class TerminalActivity : AppCompatActivity() {
         terminalView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             service?.let { syncWindowSize(it) }
         }
+    }
+
+    private fun wireImeProxy() {
+        val imeProxy = binding.imeProxy
+        imeProxy.onComposingTextChanged = { text -> updatePreedit(text) }
+        imeProxy.onCommitText = { text ->
+            // Composition was committed — flush the bytes through the same
+            // path used by hardware character input.
+            writeToSsh(text.toString().toByteArray(Charsets.UTF_8))
+            clearStickyModifiers()
+        }
+        imeProxy.onHardwareKey = { keyCode, event -> processHardwareKey(keyCode, event) }
+    }
+
+    private fun updatePreedit(text: CharSequence) {
+        val overlay = binding.preeditOverlay
+        if (text.isEmpty()) {
+            overlay.clear()
+            return
+        }
+        // The overlay paints itself at a fixed bottom-anchored position, so we
+        // only need cell height to pick a font size that matches the terminal.
+        // Cursor-tracking placement was tried first but TUI apps (Claude Code
+        // in particular) keep the emulator cursor at column 0 while drawing
+        // their own visible input cursor, which made the preedit drift.
+        val renderer = binding.terminalView.mRenderer
+        val cellHeight = renderer?.fontLineSpacing?.toFloat() ?: 0f
+        if (cellHeight <= 0f) {
+            overlay.clear()
+            return
+        }
+        overlay.setComposing(text, cellHeight)
     }
 
     /**
@@ -560,7 +666,7 @@ class TerminalActivity : AppCompatActivity() {
                         cancel.recycle()
                     }
                     if (tapInMouseTracking) {
-                        binding.terminalView.requestFocus()
+                        binding.imeProxy.requestFocus()
                         toggleSoftKeyboard()
                     }
                     handlingScrollGesture = false
@@ -577,7 +683,7 @@ class TerminalActivity : AppCompatActivity() {
 
     private fun showSoftKeyboard() {
         val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        imm.showSoftInput(binding.terminalView, InputMethodManager.SHOW_IMPLICIT)
+        imm.showSoftInput(binding.imeProxy, InputMethodManager.SHOW_IMPLICIT)
     }
 
     private fun toggleSoftKeyboard() {
@@ -737,7 +843,8 @@ class TerminalActivity : AppCompatActivity() {
         override fun onSingleTapUp(e: MotionEvent?) {
             // Tapping the terminal toggles the soft keyboard so it can be
             // re-summoned after the user dismisses it with the back gesture.
-            binding.terminalView.requestFocus()
+            // Focus stays on the IME proxy view (it's the IME target).
+            binding.imeProxy.requestFocus()
             toggleSoftKeyboard()
         }
         override fun shouldBackButtonBeMappedToEscape(): Boolean = true
@@ -774,68 +881,12 @@ class TerminalActivity : AppCompatActivity() {
         override fun onEmulatorSet() {}
 
         override fun onKeyDown(keyCode: Int, e: KeyEvent?, session: TerminalSession?): Boolean {
+            // The terminal view is not focusable in this activity (the IME
+            // proxy view owns focus), so this callback is normally inert. It
+            // stays wired up as a defensive forward in case some Termux code
+            // path delivers a key event directly to the terminal view.
             val event = e ?: return false
-            val emu = binding.terminalView.mEmulator ?: return false
-
-            // Multi-character input (e.g., IME batch)
-            if (event.action == KeyEvent.ACTION_MULTIPLE && keyCode == KeyEvent.KEYCODE_UNKNOWN) {
-                event.characters?.let { writeToSsh(it.toByteArray(Charsets.UTF_8)) }
-                clearStickyModifiers()
-                return true
-            }
-
-            // Let system keys through (except back → escape)
-            if (event.isSystem && keyCode != KeyEvent.KEYCODE_BACK) {
-                return false
-            }
-
-            val metaState = event.metaState
-            val controlDown = event.isCtrlPressed || stickyCtrl
-            val leftAltDown = (metaState and KeyEvent.META_ALT_LEFT_ON) != 0
-            val shiftDown = event.isShiftPressed || stickyShift
-
-            var keyMod = 0
-            if (controlDown) keyMod = keyMod or KeyHandler.KEYMOD_CTRL
-            if (event.isAltPressed || leftAltDown) keyMod = keyMod or KeyHandler.KEYMOD_ALT
-            if (shiftDown) keyMod = keyMod or KeyHandler.KEYMOD_SHIFT
-            if (event.isNumLockOn) keyMod = keyMod or KeyHandler.KEYMOD_NUM_LOCK
-
-            if (!event.isFunctionPressed) {
-                val code = KeyHandler.getCode(
-                    keyCode, keyMod,
-                    emu.isCursorKeysApplicationMode,
-                    emu.isKeypadApplicationMode
-                )
-                if (code != null) {
-                    writeToSsh(code.toByteArray(Charsets.UTF_8))
-                    clearStickyModifiers()
-                    return true
-                }
-            }
-
-            val rightAltDown = (metaState and KeyEvent.META_ALT_RIGHT_ON) != 0
-            var bitsToClear = KeyEvent.META_CTRL_MASK
-            if (!rightAltDown) {
-                bitsToClear = bitsToClear or KeyEvent.META_ALT_ON or KeyEvent.META_ALT_LEFT_ON
-            }
-            var effectiveMetaState = metaState and bitsToClear.inv()
-            if (shiftDown) effectiveMetaState = effectiveMetaState or KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
-
-            val result = event.getUnicodeChar(effectiveMetaState)
-            if (result == 0) return false
-
-            // Skip combining accents for now
-            if ((result and KeyCharacterMap.COMBINING_ACCENT) != 0) {
-                clearStickyModifiers()
-                return true
-            }
-
-            var codePoint = fixBluetoothCodePoint(result)
-            if (controlDown) codePoint = applyCtrl(codePoint)
-
-            writeCodePointToSsh(codePoint, leftAltDown)
-            clearStickyModifiers()
-            return true
+            return processHardwareKey(keyCode, event)
         }
 
         override fun onCodePoint(codePoint: Int, ctrlDown: Boolean, session: TerminalSession?): Boolean {

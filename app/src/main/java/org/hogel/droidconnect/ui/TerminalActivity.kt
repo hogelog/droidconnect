@@ -65,6 +65,12 @@ class TerminalActivity : AppCompatActivity() {
     private var fontSizePx = DEFAULT_FONT_SIZE_PX
     private val terminalPrefs by lazy { getSharedPreferences(PREFS_TERMINAL, Context.MODE_PRIVATE) }
 
+    // Last (cols, rows) reported to the SSH peer. Used to suppress redundant
+    // resize packets when a layout pass doesn't actually change the visible
+    // cell grid.
+    private var lastSentColumns = 0
+    private var lastSentRows = 0
+
     // Vertical-drag accumulator for setupTerminalScrollRouting.
     private var scrollRemainderPx = 0f
     // True between onDown and ACTION_UP/CANCEL whenever we have claimed a
@@ -122,6 +128,8 @@ class TerminalActivity : AppCompatActivity() {
                     val emulator = binding.terminalView.mEmulator
                     val cols = emulator?.mColumns ?: DEFAULT_COLUMNS
                     val rows = emulator?.mRows ?: DEFAULT_ROWS
+                    lastSentColumns = cols
+                    lastSentRows = rows
                     svc.connect(params, cols, rows)
                 }
                 svc.state == SshConnectionService.State.IDLE -> {
@@ -189,7 +197,11 @@ class TerminalActivity : AppCompatActivity() {
         val emulator = binding.terminalView.mEmulator ?: return
         val cols = emulator.mColumns
         val rows = emulator.mRows
-        if (cols > 0 && rows > 0) svc.resizeWindow(cols, rows)
+        if (cols <= 0 || rows <= 0) return
+        if (cols == lastSentColumns && rows == lastSentRows) return
+        lastSentColumns = cols
+        lastSentRows = rows
+        svc.resizeWindow(cols, rows)
     }
 
     private fun setupAuxKeyBar() {
@@ -404,6 +416,15 @@ class TerminalActivity : AppCompatActivity() {
         terminalView.isFocusableInTouchMode = true
         terminalView.requestFocus()
         terminalView.post { showSoftKeyboard() }
+
+        // The activity uses windowSoftInputMode="adjustResize", so showing or
+        // hiding the soft keyboard shrinks/grows the TerminalView, which in
+        // turn updates the emulator's mRows / mColumns. Push the new size to
+        // the SSH peer (SIGWINCH) so tmux/vim/less reflow to the visible area
+        // instead of leaving rows hidden under the IME.
+        terminalView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            service?.let { syncWindowSize(it) }
+        }
     }
 
     /**

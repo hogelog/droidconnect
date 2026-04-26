@@ -2,18 +2,23 @@ package org.hogel.droidconnect.ui
 
 import android.content.Context
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
-import android.graphics.Typeface
 import android.util.AttributeSet
+import android.util.TypedValue
 import android.view.View
+import com.google.android.material.color.MaterialColors
+import com.google.android.material.R as MaterialR
 
 /**
  * Decorative overlay that draws the IME's composing (preedit) string pinned to
  * the bottom-left of the terminal area, just above the soft keyboard. Sits on
  * top of the [com.termux.view.TerminalView] in the layout and consumes no
  * input — it only paints.
+ *
+ * The colour and text size match the shortcut/aux key bar (Material
+ * `colorSurfaceVariant` / `colorOnSurfaceVariant`, 16sp) so the preedit reads
+ * as a peer of those rows rather than as terminal content.
  *
  * Cursor-tracking placement was tried first but TUI apps like Claude Code
  * leave the emulator cursor at column 0 while drawing their own visible input
@@ -27,21 +32,33 @@ class PreeditOverlayView @JvmOverloads constructor(
 ) : View(context, attrs) {
 
     private var composing: CharSequence = ""
-    private var cellHeightPx: Float = 0f
+
+    private val textSizePx: Float = TypedValue.applyDimension(
+        TypedValue.COMPLEX_UNIT_SP,
+        TEXT_SIZE_SP,
+        resources.displayMetrics,
+    )
 
     private val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.argb(0xCC, 0x20, 0x20, 0x20)
+        color = MaterialColors.getColor(
+            this@PreeditOverlayView,
+            MaterialR.attr.colorSurfaceVariant,
+        )
         style = Paint.Style.FILL
     }
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.WHITE
-        typeface = Typeface.MONOSPACE
-        // Will be overwritten when the host reports cell size.
-        textSize = 32f
+        color = MaterialColors.getColor(
+            this@PreeditOverlayView,
+            MaterialR.attr.colorOnSurfaceVariant,
+        )
+        textSize = textSizePx
     }
     private val underlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.WHITE
-        strokeWidth = 2f
+        color = MaterialColors.getColor(
+            this@PreeditOverlayView,
+            MaterialR.attr.colorOnSurfaceVariant,
+        )
+        strokeWidth = (textSizePx * 0.06f).coerceAtLeast(1.5f)
     }
 
     init {
@@ -50,22 +67,10 @@ class PreeditOverlayView @JvmOverloads constructor(
         isFocusable = false
         isClickable = false
         isFocusableInTouchMode = false
-        // Drawing is gated on having a non-empty composing string; until then
-        // the view is essentially invisible.
     }
 
-    /**
-     * Update the composing text. [cellHeightPx] is the terminal's line height
-     * so the preedit reads naturally next to confirmed terminal text.
-     */
-    fun setComposing(text: CharSequence, cellHeightPx: Float) {
+    fun setComposing(text: CharSequence) {
         this.composing = text
-        this.cellHeightPx = cellHeightPx
-        if (cellHeightPx > 0f) {
-            // Slight shrink keeps descenders inside the box.
-            textPaint.textSize = cellHeightPx * 0.9f
-            underlinePaint.strokeWidth = (cellHeightPx * 0.06f).coerceAtLeast(1.5f)
-        }
         invalidate()
     }
 
@@ -76,16 +81,16 @@ class PreeditOverlayView @JvmOverloads constructor(
     }
 
     override fun onDraw(canvas: Canvas) {
-        if (composing.isEmpty() || cellHeightPx <= 0f) return
+        if (composing.isEmpty()) return
 
         val text = composing.toString()
         val textWidth = textPaint.measureText(text)
-        val padX = cellHeightPx * 0.25f
-        val padY = cellHeightPx * 0.1f
+        val padX = textSizePx * 0.5f
+        val padY = textSizePx * 0.3f
 
         // Pin to the bottom-left of the overlay (== bottom of the terminal,
         // which adjustResize keeps directly above the soft keyboard).
-        val boxHeight = cellHeightPx + padY * 2
+        val boxHeight = textSizePx + padY * 2
         val boxWidth = (textWidth + padX * 2).coerceAtMost(width.toFloat())
         val boxLeft = 0f
         val boxTop = (height - boxHeight).coerceAtLeast(0f)
@@ -93,11 +98,11 @@ class PreeditOverlayView @JvmOverloads constructor(
         val rect = RectF(boxLeft, boxTop, boxLeft + boxWidth, boxTop + boxHeight)
         canvas.drawRect(rect, backgroundPaint)
 
-        // Baseline so the glyph sits inside the box with a little headroom.
-        val baseline = boxTop + cellHeightPx + padY - (cellHeightPx * 0.18f)
+        val metrics = textPaint.fontMetrics
+        val baseline = boxTop + padY - metrics.ascent
         canvas.drawText(text, boxLeft + padX, baseline, textPaint)
 
-        val underlineY = boxTop + boxHeight - padY * 0.5f
+        val underlineY = boxTop + boxHeight - padY * 0.4f
         canvas.drawLine(
             boxLeft + padX,
             underlineY,
@@ -105,5 +110,10 @@ class PreeditOverlayView @JvmOverloads constructor(
             underlineY,
             underlinePaint,
         )
+    }
+
+    private companion object {
+        // Matches the aux/context shortcut buttons in TerminalActivity.
+        const val TEXT_SIZE_SP = 16f
     }
 }

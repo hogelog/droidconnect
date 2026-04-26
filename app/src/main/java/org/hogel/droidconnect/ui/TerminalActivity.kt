@@ -222,14 +222,13 @@ class TerminalActivity : AppCompatActivity() {
         val keys: List<Pair<String, () -> Unit>> = listOf(
             "ESC" to sendRaw(byteArrayOf(0x1B)),
             "TAB" to { sendKeyCode(KeyEvent.KEYCODE_TAB) },
-            "^C" to sendRaw(byteArrayOf(0x03)),
-            "^D" to sendRaw(byteArrayOf(0x04)),
-            "^J" to sendRaw(byteArrayOf(0x0A)),
             "^L" to sendRaw(byteArrayOf(0x0C)),
             "^R" to sendRaw(byteArrayOf(0x12)),
             "↓" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_DOWN) },
             "↑" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_UP) },
             "Sel" to ::startTextSelection,
+            "^C" to sendRaw(byteArrayOf(0x03)),
+            "^D" to sendRaw(byteArrayOf(0x04)),
         )
         for ((label, action) in keys) {
             bar.addView(makeAuxButton(label, action), auxButtonLayoutParams())
@@ -303,6 +302,8 @@ class TerminalActivity : AppCompatActivity() {
             "claude", "node" -> listOf(
                 "/clear" to sendBytes("/clear\r".toByteArray(Charsets.UTF_8)),
                 "⇧Tab" to sendBytes(byteArrayOf(0x1B, '['.code.toByte(), 'Z'.code.toByte())),
+                "aka" to sendText("aka"),
+                "^J" to sendBytes(byteArrayOf(0x0A)),
             )
             "bash", "zsh", "sh", "fish" -> listOf(
                 "claude" to sendText("claude"),

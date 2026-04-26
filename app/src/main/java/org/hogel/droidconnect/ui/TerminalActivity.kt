@@ -436,6 +436,14 @@ class TerminalActivity : AppCompatActivity() {
             ): Boolean {
                 // Ignore pinch gestures — font-size zoom is driven by onScale.
                 if (e2.pointerCount > 1) return false
+                // Long-press can misfire at the start of a slow swipe, leaving
+                // the Copy/Paste/More floating toolbar visible while the user
+                // continues scrolling. Treat any single-finger drag as a
+                // scroll intent and dismiss text selection so the toolbar
+                // only persists for deliberate long-press → release gestures.
+                if (binding.terminalView.isSelectingText) {
+                    binding.terminalView.stopTextSelectionMode()
+                }
                 val emu = binding.terminalView.mEmulator ?: return false
                 val rows = emu.mRows
                 if (rows <= 0) return false

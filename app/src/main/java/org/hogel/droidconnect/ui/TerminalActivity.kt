@@ -201,12 +201,18 @@ class TerminalActivity : AppCompatActivity() {
             clearStickyModifiers()
         }
 
+        ctrlButton = makeAuxButton("Ctrl") { setCtrlSticky(!stickyCtrl) }
+            .also { styleModifierButton(it); bar.addView(it, auxButtonLayoutParams()) }
+        shiftButton = makeAuxButton("Shift") { setShiftSticky(!stickyShift) }
+            .also { styleModifierButton(it); bar.addView(it, auxButtonLayoutParams()) }
+
         val keys: List<Pair<String, () -> Unit>> = listOf(
             "ESC" to sendRaw(byteArrayOf(0x1B)),
             "TAB" to { sendKeyCode(KeyEvent.KEYCODE_TAB) },
             "^C" to sendRaw(byteArrayOf(0x03)),
             "^D" to sendRaw(byteArrayOf(0x04)),
             "^J" to sendRaw(byteArrayOf(0x0A)),
+            "^L" to sendRaw(byteArrayOf(0x0C)),
             "^R" to sendRaw(byteArrayOf(0x12)),
             "↓" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_DOWN) },
             "↑" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_UP) },
@@ -214,11 +220,6 @@ class TerminalActivity : AppCompatActivity() {
         for ((label, action) in keys) {
             bar.addView(makeAuxButton(label, action), auxButtonLayoutParams())
         }
-
-        shiftButton = makeAuxButton("Shift") { setShiftSticky(!stickyShift) }
-            .also { styleModifierButton(it); bar.addView(it, auxButtonLayoutParams()) }
-        ctrlButton = makeAuxButton("Ctrl") { setCtrlSticky(!stickyCtrl) }
-            .also { styleModifierButton(it); bar.addView(it, auxButtonLayoutParams()) }
     }
 
     private fun auxButtonLayoutParams(): LinearLayout.LayoutParams {

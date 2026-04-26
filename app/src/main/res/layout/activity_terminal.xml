@@ -10,11 +10,28 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <com.termux.view.TerminalView
-            android:id="@+id/terminal_view"
+        <FrameLayout
+            android:id="@+id/terminal_container"
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1" />
+            android:layout_weight="1">
+
+            <org.hogel.droidconnect.ui.ImeProxyView
+                android:id="@+id/ime_proxy"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <com.termux.view.TerminalView
+                android:id="@+id/terminal_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <org.hogel.droidconnect.ui.PreeditOverlayView
+                android:id="@+id/preedit_overlay"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+        </FrameLayout>
 
         <HorizontalScrollView
             android:id="@+id/context_key_scroll"

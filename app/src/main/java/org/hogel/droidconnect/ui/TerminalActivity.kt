@@ -302,7 +302,6 @@ class TerminalActivity : AppCompatActivity() {
             "claude", "node" -> listOf(
                 "/clear" to sendBytes("/clear\r".toByteArray(Charsets.UTF_8)),
                 "⇧Tab" to sendBytes(byteArrayOf(0x1B, '['.code.toByte(), 'Z'.code.toByte())),
-                "aka" to sendText("aka"),
                 "^J" to sendBytes(byteArrayOf(0x0A)),
             )
             "bash", "zsh", "sh", "fish" -> listOf(

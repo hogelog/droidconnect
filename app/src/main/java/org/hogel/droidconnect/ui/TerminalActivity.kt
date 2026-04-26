@@ -518,20 +518,9 @@ class TerminalActivity : AppCompatActivity() {
         val overlay = binding.preeditOverlay
         if (text.isEmpty()) {
             overlay.clear()
-            return
+        } else {
+            overlay.setComposing(text)
         }
-        // The overlay paints itself at a fixed bottom-anchored position, so we
-        // only need cell height to pick a font size that matches the terminal.
-        // Cursor-tracking placement was tried first but TUI apps (Claude Code
-        // in particular) keep the emulator cursor at column 0 while drawing
-        // their own visible input cursor, which made the preedit drift.
-        val renderer = binding.terminalView.mRenderer
-        val cellHeight = renderer?.fontLineSpacing?.toFloat() ?: 0f
-        if (cellHeight <= 0f) {
-            overlay.clear()
-            return
-        }
-        overlay.setComposing(text, cellHeight)
     }
 
     /**

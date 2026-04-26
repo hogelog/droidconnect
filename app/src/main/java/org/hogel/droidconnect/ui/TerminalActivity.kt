@@ -25,10 +25,15 @@ import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
+import java.util.concurrent.Executors
+import java.util.concurrent.SynchronousQueue
 import org.hogel.droidconnect.R
 import org.hogel.droidconnect.databinding.ActivityTerminalBinding
+import org.hogel.droidconnect.ssh.BiometricAuthenticationException
+import org.hogel.droidconnect.ssh.BiometricAuthenticator
 import org.hogel.droidconnect.ssh.SshConnectionService
 import org.hogel.droidconnect.ssh.SshKeyManager
 import com.termux.terminal.KeyHandler
@@ -54,6 +59,65 @@ class TerminalActivity : AppCompatActivity() {
     private var bound = false
 
     private var pendingParams: SshConnectionService.ConnectionParams? = null
+
+    // BiometricPrompt callbacks run on this executor; we keep the UI thread
+    // free and post prompt-show calls explicitly via runOnUiThread below.
+    private val biometricExecutor = Executors.newSingleThreadExecutor()
+
+    private val biometricAuthenticator = object : BiometricAuthenticator {
+        override fun authenticate(
+            cryptoObject: BiometricPrompt.CryptoObject,
+        ): BiometricPrompt.CryptoObject {
+            // sshlib's auth handshake calls us on the ssh-read thread; block it
+            // on this queue until the biometric callback fires on the UI side.
+            val resultQueue = SynchronousQueue<Result<BiometricPrompt.CryptoObject>>()
+            val callback = object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                    val crypto = result.cryptoObject
+                        ?: return deliver(Result.failure(
+                            BiometricAuthenticationException("Biometric result had no CryptoObject"),
+                        ))
+                    deliver(Result.success(crypto))
+                }
+
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    deliver(Result.failure(
+                        BiometricAuthenticationException("Biometric error $errorCode: $errString"),
+                    ))
+                }
+
+                override fun onAuthenticationFailed() {
+                    // Keep the prompt open; the user can retry. The prompt only
+                    // dismisses on success or error (e.g., too many attempts).
+                }
+
+                private fun deliver(r: Result<BiometricPrompt.CryptoObject>) {
+                    // Offer may be called before the consumer thread parks; use
+                    // put so we block until the SSH thread picks it up.
+                    resultQueue.put(r)
+                }
+            }
+
+            runOnUiThread {
+                val prompt = BiometricPrompt(
+                    this@TerminalActivity,
+                    biometricExecutor,
+                    callback,
+                )
+                val info = BiometricPrompt.PromptInfo.Builder()
+                    .setTitle(getString(R.string.biometric_prompt_title))
+                    .setSubtitle(getString(R.string.biometric_prompt_subtitle))
+                    .setNegativeButtonText(getString(android.R.string.cancel))
+                    .setAllowedAuthenticators(
+                        androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG,
+                    )
+                    .build()
+                prompt.authenticate(info, cryptoObject)
+            }
+
+            return resultQueue.take().getOrThrow()
+        }
+    }
 
     // Sticky modifier state: applies to the next single key input, then resets.
     private var stickyShift = false
@@ -121,7 +185,7 @@ class TerminalActivity : AppCompatActivity() {
                     val emulator = binding.terminalView.mEmulator
                     val cols = emulator?.mColumns ?: DEFAULT_COLUMNS
                     val rows = emulator?.mRows ?: DEFAULT_ROWS
-                    svc.connect(params, cols, rows)
+                    svc.connect(params, biometricAuthenticator, cols, rows)
                 }
                 svc.state == SshConnectionService.State.IDLE -> {
                     // Resumed from notification but the service is no longer connected.
@@ -151,12 +215,12 @@ class TerminalActivity : AppCompatActivity() {
         val command = intent.getStringExtra(EXTRA_POST_CONNECT_COMMAND)?.takeIf { it.isNotBlank() }
         val useTmux = intent.getBooleanExtra(EXTRA_USE_TMUX, false)
         if (host != null && username != null) {
-            val privateKey = SshKeyManager(this).getPrivateKeyPem() ?: run {
+            if (!SshKeyManager().hasKey()) {
                 Toast.makeText(this, "No SSH key found", Toast.LENGTH_SHORT).show()
                 return finish()
             }
             pendingParams = SshConnectionService.ConnectionParams(
-                host, port, username, privateKey, command, useTmux,
+                host, port, username, command, useTmux,
             )
         }
 
@@ -634,6 +698,7 @@ class TerminalActivity : AppCompatActivity() {
             bound = false
             service = null
         }
+        biometricExecutor.shutdownNow()
         binding.terminalView.mTermSession?.finishIfRunning()
         super.onDestroy()
     }

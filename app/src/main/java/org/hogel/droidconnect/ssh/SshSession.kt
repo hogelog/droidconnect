@@ -3,6 +3,7 @@ package org.hogel.droidconnect.ssh
 import com.trilead.ssh2.Connection
 import com.trilead.ssh2.ServerHostKeyVerifier
 import com.trilead.ssh2.Session
+import com.trilead.ssh2.auth.SignatureProxy
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -11,7 +12,7 @@ class SshSession(
     private val host: String,
     private val port: Int,
     private val username: String,
-    private val privateKeyPem: CharArray,
+    private val signatureProxy: SignatureProxy,
 ) {
     private var connection: Connection? = null
     private var session: Session? = null
@@ -29,7 +30,7 @@ class SshSession(
         val acceptAllVerifier = ServerHostKeyVerifier { _, _, _, _ -> true }
         conn.connect(acceptAllVerifier, 10_000, 10_000)
 
-        val authenticated = conn.authenticateWithPublicKey(username, privateKeyPem, null)
+        val authenticated = conn.authenticateWithPublicKey(username, signatureProxy)
         if (!authenticated) {
             conn.close()
             throw SshAuthenticationException("Public key authentication failed")

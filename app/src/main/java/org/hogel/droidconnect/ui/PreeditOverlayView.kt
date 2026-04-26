@@ -10,14 +10,16 @@ import android.util.AttributeSet
 import android.view.View
 
 /**
- * Decorative overlay that draws the IME's composing (preedit) string near the
- * terminal cursor. Sits on top of the [com.termux.view.TerminalView] in the
- * layout and consumes no input — it only paints.
+ * Decorative overlay that draws the IME's composing (preedit) string pinned to
+ * the bottom-left of the terminal area, just above the soft keyboard. Sits on
+ * top of the [com.termux.view.TerminalView] in the layout and consumes no
+ * input — it only paints.
  *
- * The host computes the cursor pixel position from the emulator state (cursor
- * row/col, scroll offset, cell width/height) and calls [setComposing] each
- * time the IME updates the composition. When the composition is committed or
- * cleared, callers pass an empty string and the overlay disappears.
+ * Cursor-tracking placement was tried first but TUI apps like Claude Code
+ * leave the emulator cursor at column 0 while drawing their own visible input
+ * cursor, which made the preedit appear to drift away from where the user was
+ * typing. A fixed bottom-anchored slot is predictable and stays in the user's
+ * line of sight while typing.
  */
 class PreeditOverlayView @JvmOverloads constructor(
     context: Context,
@@ -25,9 +27,6 @@ class PreeditOverlayView @JvmOverloads constructor(
 ) : View(context, attrs) {
 
     private var composing: CharSequence = ""
-    private var cursorPxX: Float = 0f
-    private var cursorPxY: Float = 0f
-    private var cellWidthPx: Float = 0f
     private var cellHeightPx: Float = 0f
 
     private val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -56,25 +55,14 @@ class PreeditOverlayView @JvmOverloads constructor(
     }
 
     /**
-     * Update the composing text and where it should appear. [cursorPxX] /
-     * [cursorPxY] mark the top-left of the cell at which the terminal cursor
-     * currently sits.
+     * Update the composing text. [cellHeightPx] is the terminal's line height
+     * so the preedit reads naturally next to confirmed terminal text.
      */
-    fun setComposing(
-        text: CharSequence,
-        cursorPxX: Float,
-        cursorPxY: Float,
-        cellWidthPx: Float,
-        cellHeightPx: Float,
-    ) {
+    fun setComposing(text: CharSequence, cellHeightPx: Float) {
         this.composing = text
-        this.cursorPxX = cursorPxX
-        this.cursorPxY = cursorPxY
-        this.cellWidthPx = cellWidthPx
         this.cellHeightPx = cellHeightPx
         if (cellHeightPx > 0f) {
-            // Match terminal cell height so preedit reads naturally next to
-            // confirmed text. Slight shrink keeps descenders inside the box.
+            // Slight shrink keeps descenders inside the box.
             textPaint.textSize = cellHeightPx * 0.9f
             underlinePaint.strokeWidth = (cellHeightPx * 0.06f).coerceAtLeast(1.5f)
         }
@@ -92,22 +80,15 @@ class PreeditOverlayView @JvmOverloads constructor(
 
         val text = composing.toString()
         val textWidth = textPaint.measureText(text)
-        val padX = cellWidthPx * 0.25f
+        val padX = cellHeightPx * 0.25f
         val padY = cellHeightPx * 0.1f
 
-        // Default position: directly under the cursor cell. Flip above the
-        // cursor when there isn't enough room below (last line, large preedit).
+        // Pin to the bottom-left of the overlay (== bottom of the terminal,
+        // which adjustResize keeps directly above the soft keyboard).
         val boxHeight = cellHeightPx + padY * 2
-        val boxWidth = textWidth + padX * 2
-
-        var boxLeft = cursorPxX
-        var boxTop = cursorPxY + cellHeightPx
-        if (boxTop + boxHeight > height) {
-            boxTop = (cursorPxY - boxHeight).coerceAtLeast(0f)
-        }
-        if (boxLeft + boxWidth > width) {
-            boxLeft = (width - boxWidth).coerceAtLeast(0f)
-        }
+        val boxWidth = (textWidth + padX * 2).coerceAtMost(width.toFloat())
+        val boxLeft = 0f
+        val boxTop = (height - boxHeight).coerceAtLeast(0f)
 
         val rect = RectF(boxLeft, boxTop, boxLeft + boxWidth, boxTop + boxHeight)
         canvas.drawRect(rect, backgroundPaint)

@@ -28,15 +28,16 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
-import org.hogel.droidconnect.R
-import org.hogel.droidconnect.databinding.ActivityTerminalBinding
-import org.hogel.droidconnect.ssh.SshConnectionService
-import org.hogel.droidconnect.ssh.SshKeyManager
+import com.google.android.material.color.MaterialColors
 import com.termux.terminal.KeyHandler
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
 import com.termux.view.TerminalViewClient
+import org.hogel.droidconnect.R
+import org.hogel.droidconnect.databinding.ActivityTerminalBinding
+import org.hogel.droidconnect.ssh.SshConnectionService
+import org.hogel.droidconnect.ssh.SshKeyManager
 import kotlin.math.abs
 
 /**
@@ -233,10 +234,12 @@ class TerminalActivity : AppCompatActivity() {
             bar.addView(makeAuxButton(label, action), auxButtonLayoutParams())
         }
 
-        // Sel sits permanently on the right end of the upper row so it stays
-        // reachable regardless of which app context is active.
+        // Select sits permanently on the right end of the upper row so it
+        // stays reachable regardless of which app context is active. It is
+        // styled distinctly from the keyboard-input buttons because it
+        // toggles a UI mode rather than sending input.
         binding.contextRightBar.addView(
-            makeAuxButton("Sel", ::startTextSelection),
+            makeAuxButton("Select", ::startTextSelection).also { styleSelectButton(it) },
             auxButtonLayoutParams(),
         )
     }
@@ -272,7 +275,7 @@ class TerminalActivity : AppCompatActivity() {
      * the active tmux pane's foreground command (delivered as the OSC window
      * title once `tmux set -g set-titles on` is in effect; configured by
      * [SshSession]). The row itself stays visible regardless of [app] because
-     * the Sel button anchored on the right end belongs to it.
+     * the Select button anchored on the right end belongs to it.
      */
     private fun applyAppContext(app: String?) {
         val normalized = app?.trim()?.lowercase()
@@ -318,6 +321,13 @@ class TerminalActivity : AppCompatActivity() {
         ContextCompat.getColorStateList(this, R.color.aux_modifier_text)?.let {
             button.setTextColor(it)
         }
+    }
+
+    private fun styleSelectButton(button: Button) {
+        button.background = ContextCompat.getDrawable(this, R.drawable.bg_aux_select)
+        button.setTextColor(
+            MaterialColors.getColor(button, com.google.android.material.R.attr.colorOnTertiaryContainer),
+        )
     }
 
     private fun setShiftSticky(on: Boolean) {
@@ -849,7 +859,7 @@ class TerminalActivity : AppCompatActivity() {
         // startTextSelectionMode() so the Copy/Paste/More floating toolbar
         // never appears from a misfired long-press timer (a 500 ms hold
         // with no movement, which is easy to hit at the start of a slow
-        // swipe). Selection is started explicitly from the "Sel" button on
+        // swipe). Selection is started explicitly from the "Select" button on
         // the right end of the context row via startTextSelection().
         override fun onLongPress(event: MotionEvent?): Boolean = true
         // Sticky modifiers are consumed when read by the soft keyboard text path

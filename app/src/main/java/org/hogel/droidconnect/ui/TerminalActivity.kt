@@ -28,7 +28,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
-import com.google.android.material.color.MaterialColors
 import com.termux.terminal.KeyHandler
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession
@@ -236,12 +235,12 @@ class TerminalActivity : AppCompatActivity() {
 
         // Select sits permanently on the right end of the upper row so it
         // stays reachable regardless of which app context is active. It is
-        // styled distinctly from the keyboard-input buttons because it
-        // toggles a UI mode rather than sending input.
-        binding.contextRightBar.addView(
-            makeAuxButton("Select", ::startTextSelection).also { styleSelectButton(it) },
-            auxButtonLayoutParams(),
-        )
+        // styled distinctly from the keyboard-input buttons (outlined, not
+        // filled) because it toggles a UI mode rather than sending input.
+        makeAuxButton("Select", ::startTextSelection).also {
+            styleSelectButton(it)
+            binding.contextRightBar.addView(it, auxButtonLayoutParams())
+        }
     }
 
     private fun auxButtonLayoutParams(): LinearLayout.LayoutParams {
@@ -325,9 +324,6 @@ class TerminalActivity : AppCompatActivity() {
 
     private fun styleSelectButton(button: Button) {
         button.background = ContextCompat.getDrawable(this, R.drawable.bg_aux_select)
-        button.setTextColor(
-            MaterialColors.getColor(button, com.google.android.material.R.attr.colorOnTertiaryContainer),
-        )
     }
 
     private fun setShiftSticky(on: Boolean) {

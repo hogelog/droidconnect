@@ -324,6 +324,8 @@ class TerminalActivity : AppCompatActivity() {
 
     private fun styleSelectButton(button: Button) {
         button.background = ContextCompat.getDrawable(this, R.drawable.bg_aux_select)
+        val pad = dpToPx(4)
+        button.setPadding(pad, 0, pad, 0)
     }
 
     private fun setShiftSticky(on: Boolean) {

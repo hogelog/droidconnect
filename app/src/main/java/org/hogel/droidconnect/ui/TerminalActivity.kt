@@ -233,10 +233,10 @@ class TerminalActivity : AppCompatActivity() {
             bar.addView(makeAuxButton(label, action), auxButtonLayoutParams())
         }
 
-        // Sel sits permanently on the right end of the upper row so it stays
-        // reachable regardless of which app context is active.
+        // Select sits permanently on the right end of the upper row so it
+        // stays reachable regardless of which app context is active.
         binding.contextRightBar.addView(
-            makeAuxButton("Sel", ::startTextSelection),
+            makeAuxButton("Select", ::startTextSelection),
             auxButtonLayoutParams(),
         )
     }
@@ -272,7 +272,7 @@ class TerminalActivity : AppCompatActivity() {
      * the active tmux pane's foreground command (delivered as the OSC window
      * title once `tmux set -g set-titles on` is in effect; configured by
      * [SshSession]). The row itself stays visible regardless of [app] because
-     * the Sel button anchored on the right end belongs to it.
+     * the Select button anchored on the right end belongs to it.
      */
     private fun applyAppContext(app: String?) {
         val normalized = app?.trim()?.lowercase()
@@ -355,9 +355,21 @@ class TerminalActivity : AppCompatActivity() {
             terminalView.height / 2f,
             0,
         )
+        // termux's startTextSelectionMode aborts silently if requestFocus()
+        // fails, which it always does here because TerminalView is set
+        // non-focusable so the IME proxy view can own input focus. Flip
+        // focusability on for the duration of the call. The selection
+        // cursors are PopupWindows that handle their own touches once
+        // shown, so restoring non-focusable afterwards is safe — the
+        // aux button's post-click handler then hands focus back to the
+        // IME proxy as usual.
+        terminalView.isFocusable = true
+        terminalView.isFocusableInTouchMode = true
         try {
             terminalView.startTextSelectionMode(event)
         } finally {
+            terminalView.isFocusable = false
+            terminalView.isFocusableInTouchMode = false
             event.recycle()
         }
     }
@@ -849,7 +861,7 @@ class TerminalActivity : AppCompatActivity() {
         // startTextSelectionMode() so the Copy/Paste/More floating toolbar
         // never appears from a misfired long-press timer (a 500 ms hold
         // with no movement, which is easy to hit at the start of a slow
-        // swipe). Selection is started explicitly from the "Sel" button on
+        // swipe). Selection is started explicitly from the "Select" button on
         // the right end of the context row via startTextSelection().
         override fun onLongPress(event: MotionEvent?): Boolean = true
         // Sticky modifiers are consumed when read by the soft keyboard text path

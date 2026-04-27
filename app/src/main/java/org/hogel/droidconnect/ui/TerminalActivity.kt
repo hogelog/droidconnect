@@ -28,15 +28,15 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
-import org.hogel.droidconnect.R
-import org.hogel.droidconnect.databinding.ActivityTerminalBinding
-import org.hogel.droidconnect.ssh.SshConnectionService
-import org.hogel.droidconnect.ssh.SshKeyManager
 import com.termux.terminal.KeyHandler
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
 import com.termux.view.TerminalViewClient
+import org.hogel.droidconnect.R
+import org.hogel.droidconnect.databinding.ActivityTerminalBinding
+import org.hogel.droidconnect.ssh.SshConnectionService
+import org.hogel.droidconnect.ssh.SshKeyManager
 import kotlin.math.abs
 
 /**
@@ -233,12 +233,14 @@ class TerminalActivity : AppCompatActivity() {
             bar.addView(makeAuxButton(label, action), auxButtonLayoutParams())
         }
 
-        // Sel sits permanently on the right end of the upper row so it stays
-        // reachable regardless of which app context is active.
-        binding.contextRightBar.addView(
-            makeAuxButton("Sel", ::startTextSelection),
-            auxButtonLayoutParams(),
-        )
+        // Select sits permanently on the right end of the upper row so it
+        // stays reachable regardless of which app context is active. It is
+        // styled distinctly from the keyboard-input buttons (outlined, not
+        // filled) because it toggles a UI mode rather than sending input.
+        makeAuxButton("Select", ::startTextSelection).also {
+            styleSelectButton(it)
+            binding.contextRightBar.addView(it, auxButtonLayoutParams())
+        }
     }
 
     private fun auxButtonLayoutParams(): LinearLayout.LayoutParams {
@@ -272,7 +274,7 @@ class TerminalActivity : AppCompatActivity() {
      * the active tmux pane's foreground command (delivered as the OSC window
      * title once `tmux set -g set-titles on` is in effect; configured by
      * [SshSession]). The row itself stays visible regardless of [app] because
-     * the Sel button anchored on the right end belongs to it.
+     * the Select button anchored on the right end belongs to it.
      */
     private fun applyAppContext(app: String?) {
         val normalized = app?.trim()?.lowercase()
@@ -320,6 +322,13 @@ class TerminalActivity : AppCompatActivity() {
         }
     }
 
+    private fun styleSelectButton(button: Button) {
+        button.background = ContextCompat.getDrawable(this, R.drawable.bg_aux_select)
+        val tightHeight = dpToPx(32)
+        button.minHeight = tightHeight
+        button.minimumHeight = tightHeight
+    }
+
     private fun setShiftSticky(on: Boolean) {
         stickyShift = on
         shiftButton?.isActivated = on
@@ -355,9 +364,21 @@ class TerminalActivity : AppCompatActivity() {
             terminalView.height / 2f,
             0,
         )
+        // termux's startTextSelectionMode aborts silently if requestFocus()
+        // fails, which it always does here because TerminalView is set
+        // non-focusable so the IME proxy view can own input focus. Flip
+        // focusability on for the duration of the call. The selection
+        // cursors are PopupWindows that handle their own touches once
+        // shown, so restoring non-focusable afterwards is safe — the
+        // aux button's post-click handler then hands focus back to the
+        // IME proxy as usual.
+        terminalView.isFocusable = true
+        terminalView.isFocusableInTouchMode = true
         try {
             terminalView.startTextSelectionMode(event)
         } finally {
+            terminalView.isFocusable = false
+            terminalView.isFocusableInTouchMode = false
             event.recycle()
         }
     }
@@ -849,7 +870,7 @@ class TerminalActivity : AppCompatActivity() {
         // startTextSelectionMode() so the Copy/Paste/More floating toolbar
         // never appears from a misfired long-press timer (a 500 ms hold
         // with no movement, which is easy to hit at the start of a slow
-        // swipe). Selection is started explicitly from the "Sel" button on
+        // swipe). Selection is started explicitly from the "Select" button on
         // the right end of the context row via startTextSelection().
         override fun onLongPress(event: MotionEvent?): Boolean = true
         // Sticky modifiers are consumed when read by the soft keyboard text path

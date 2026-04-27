@@ -361,9 +361,21 @@ class TerminalActivity : AppCompatActivity() {
             terminalView.height / 2f,
             0,
         )
+        // termux's startTextSelectionMode aborts silently if requestFocus()
+        // fails, which it always does here because TerminalView is set
+        // non-focusable so the IME proxy view can own input focus. Flip
+        // focusability on for the duration of the call. The selection
+        // cursors are PopupWindows that handle their own touches once
+        // shown, so restoring non-focusable afterwards is safe — the
+        // aux button's post-click handler then hands focus back to the
+        // IME proxy as usual.
+        terminalView.isFocusable = true
+        terminalView.isFocusableInTouchMode = true
         try {
             terminalView.startTextSelectionMode(event)
         } finally {
+            terminalView.isFocusable = false
+            terminalView.isFocusableInTouchMode = false
             event.recycle()
         }
     }

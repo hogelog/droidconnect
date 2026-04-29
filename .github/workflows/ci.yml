@@ -51,7 +51,7 @@ jobs:
         env:
           SENTRY_DSN: ${{ vars.SENTRY_DSN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleDebug --configuration-cache
 
       - name: Upload to DeployGate
         env:
@@ -113,4 +113,4 @@ jobs:
         env:
           SENTRY_DSN: ${{ vars.SENTRY_DSN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: ./gradlew lintDebug
+        run: ./gradlew lintDebug --configuration-cache

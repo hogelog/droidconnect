@@ -47,11 +47,11 @@ jobs:
             sed -i "/apply plugin: 'maven-publish'/d; /task sourceJar/,/^}/d; /afterEvaluate/,/^}/d" "$f"
           done
 
-      - name: Build debug APK and run lint
+      - name: Build debug APK
         env:
           SENTRY_DSN: ${{ vars.SENTRY_DSN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: ./gradlew assembleDebug lint
+        run: ./gradlew assembleDebug
 
       - name: Upload to DeployGate
         env:
@@ -66,3 +66,51 @@ jobs:
             -F "file=@app/build/outputs/apk/debug/app-debug.apk" \
             --form-string "message=PR #${PR_NUMBER} ${SHORT_SHA}" \
             "https://deploygate.com/api/users/${DEPLOYGATE_USER_NAME}/apps"
+
+  lint:
+    if: contains(fromJSON(vars.CI_ALLOWED_USERS), github.event.pull_request.user.login)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Compute submodule cache key
+        id: submodule-key
+        run: |
+          paths=$(git config -f .gitmodules --get-regexp path | awk '{print $2}')
+          hash=$(git ls-tree HEAD -- $paths | sha256sum | awk '{print $1}')
+          echo "hash=$hash" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        id: submodule-cache
+        with:
+          path: vendor
+          key: submodules-v1-${{ hashFiles('.gitmodules') }}-${{ steps.submodule-key.outputs.hash }}
+
+      - name: Initialize submodules
+        if: steps.submodule-cache.outputs.cache-hit != 'true'
+        run: git submodule update --init --recursive
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v4
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      # Remove publishing blocks incompatible with Gradle 8.x (unused by this project)
+      - name: Patch vendor build scripts
+        run: |
+          for f in vendor/termux-app/terminal-emulator/build.gradle vendor/termux-app/terminal-view/build.gradle; do
+            sed -i "/apply plugin: 'maven-publish'/d; /task sourceJar/,/^}/d; /afterEvaluate/,/^}/d" "$f"
+          done
+
+      - name: Run lint
+        env:
+          SENTRY_DSN: ${{ vars.SENTRY_DSN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: ./gradlew lintDebug

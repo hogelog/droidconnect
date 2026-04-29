@@ -1,5 +1,3 @@
-import java.io.ByteArrayOutputStream
-
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -8,20 +6,10 @@ plugins {
 
 // Embedded into BuildConfig so the app can show a `<versionName>-<shortrev>` footer.
 // Falls back to "unknown" when git is unavailable (e.g. source archive builds).
-val gitShortRev: String = run {
-    val stdout = ByteArrayOutputStream()
-    try {
-        exec {
-            commandLine("git", "rev-parse", "--short", "HEAD")
-            standardOutput = stdout
-            errorOutput = ByteArrayOutputStream()
-            isIgnoreExitValue = true
-        }
-        stdout.toString().trim().ifEmpty { "unknown" }
-    } catch (_: Exception) {
-        "unknown"
-    }
-}
+val gitShortRev: String = providers.exec {
+    commandLine("git", "rev-parse", "--short", "HEAD")
+    isIgnoreExitValue = true
+}.standardOutput.asText.map { it.trim().ifEmpty { "unknown" } }.getOrElse("unknown")
 
 val prNumber: String? = System.getenv("PR_NUMBER")?.takeIf { it.isNotBlank() }
 val baseVersionName = "0.1.0"

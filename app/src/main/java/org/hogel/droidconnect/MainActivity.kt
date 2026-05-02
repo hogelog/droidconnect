@@ -10,7 +10,6 @@ import android.content.SharedPreferences
 import android.os.Bundle
 import android.os.IBinder
 import android.view.View
-import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -64,7 +63,6 @@ class MainActivity : AppCompatActivity() {
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
         restoreConnectionInput()
-        refreshCommandDropdown()
 
         updatePublicKeyDisplay()
 
@@ -83,10 +81,6 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, R.string.public_key_copied, Toast.LENGTH_SHORT).show()
         }
 
-        binding.layoutPostConnectCommand.setStartIconOnClickListener {
-            saveCurrentCommand()
-        }
-
         binding.btnConnect.setOnClickListener {
             if (isSessionActive()) {
                 resumeTerminal()
@@ -96,16 +90,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.btnMainDisconnect.setOnClickListener { service?.shutdown() }
-    }
-
-    private fun saveCurrentCommand() {
-        val command = binding.editPostConnectCommand.text.toString().trim()
-        if (command.isEmpty()) {
-            Toast.makeText(this, R.string.post_connect_command_empty, Toast.LENGTH_SHORT).show()
-            return
-        }
-        rememberCommand(command)
-        Toast.makeText(this, R.string.post_connect_command_saved, Toast.LENGTH_SHORT).show()
     }
 
     private fun isSessionActive(): Boolean = when (service?.state) {
@@ -122,21 +106,15 @@ class MainActivity : AppCompatActivity() {
         val host = binding.editHost.text.toString().trim()
         val portStr = binding.editPort.text.toString().trim()
         val username = binding.editUsername.text.toString().trim()
-        val command = binding.editPostConnectCommand.text.toString().trim()
 
         if (host.isEmpty() || username.isEmpty()) return
 
         val port = portStr.toIntOrNull() ?: 22
 
-        if (command.isNotEmpty()) {
-            rememberCommand(command)
-        }
-
         val intent = Intent(this, TerminalActivity::class.java).apply {
             putExtra(TerminalActivity.EXTRA_HOST, host)
             putExtra(TerminalActivity.EXTRA_PORT, port)
             putExtra(TerminalActivity.EXTRA_USERNAME, username)
-            putExtra(TerminalActivity.EXTRA_POST_CONNECT_COMMAND, command)
             putExtra(TerminalActivity.EXTRA_USE_TMUX, binding.switchUseTmux.isChecked)
         }
         startActivity(intent)
@@ -194,9 +172,6 @@ class MainActivity : AppCompatActivity() {
         prefs.getString(KEY_HOST, null)?.let { binding.editHost.setText(it) }
         prefs.getString(KEY_PORT, null)?.let { binding.editPort.setText(it) }
         prefs.getString(KEY_USERNAME, null)?.let { binding.editUsername.setText(it) }
-        prefs.getString(KEY_LAST_COMMAND, null)?.let {
-            binding.editPostConnectCommand.setText(it)
-        }
         binding.switchUseTmux.isChecked = prefs.getBoolean(KEY_USE_TMUX, true)
     }
 
@@ -205,29 +180,8 @@ class MainActivity : AppCompatActivity() {
             putString(KEY_HOST, binding.editHost.text.toString())
             putString(KEY_PORT, binding.editPort.text.toString())
             putString(KEY_USERNAME, binding.editUsername.text.toString())
-            putString(KEY_LAST_COMMAND, binding.editPostConnectCommand.text.toString())
             putBoolean(KEY_USE_TMUX, binding.switchUseTmux.isChecked)
         }
-    }
-
-    private fun refreshCommandDropdown() {
-        val items = loadCommandHistory() + ""
-        val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, items)
-        binding.editPostConnectCommand.setAdapter(adapter)
-    }
-
-    private fun loadCommandHistory(): List<String> {
-        val raw = prefs.getString(KEY_COMMAND_HISTORY, null) ?: return emptyList()
-        return raw.split('\n').filter { it.isNotEmpty() }
-    }
-
-    private fun rememberCommand(command: String) {
-        val current = loadCommandHistory().toMutableList()
-        current.remove(command)
-        current.add(0, command)
-        while (current.size > MAX_COMMAND_HISTORY) current.removeAt(current.size - 1)
-        prefs.edit { putString(KEY_COMMAND_HISTORY, current.joinToString("\n")) }
-        refreshCommandDropdown()
     }
 
     private fun confirmOverwriteAndGenerateKey() {
@@ -255,9 +209,6 @@ class MainActivity : AppCompatActivity() {
         private const val KEY_HOST = "host"
         private const val KEY_PORT = "port"
         private const val KEY_USERNAME = "username"
-        private const val KEY_LAST_COMMAND = "post_connect_command"
-        private const val KEY_COMMAND_HISTORY = "post_connect_command_history"
         private const val KEY_USE_TMUX = "use_tmux"
-        private const val MAX_COMMAND_HISTORY = 20
     }
 }

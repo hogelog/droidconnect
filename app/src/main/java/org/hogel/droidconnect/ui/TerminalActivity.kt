@@ -301,7 +301,8 @@ class TerminalActivity : AppCompatActivity() {
             // Claude Code starts a Node process; pane_current_command is most
             // commonly "node". "claude" covers the wrapper script.
             "claude", "node" -> listOf(
-                "/clear" to sendBytes("/clear\r".toByteArray(Charsets.UTF_8)),
+                "/" to sendText("/"),
+                "/clear" to sendText("/clear"),
                 "⇧Tab" to sendBytes(byteArrayOf(0x1B, '['.code.toByte(), 'Z'.code.toByte())),
                 "^J" to sendBytes(byteArrayOf(0x0A)),
             )

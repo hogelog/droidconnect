@@ -157,7 +157,6 @@ class TerminalActivity : AppCompatActivity() {
         val host = intent.getStringExtra(EXTRA_HOST)
         val username = intent.getStringExtra(EXTRA_USERNAME)
         val port = intent.getIntExtra(EXTRA_PORT, 22)
-        val command = intent.getStringExtra(EXTRA_POST_CONNECT_COMMAND)?.takeIf { it.isNotBlank() }
         val useTmux = intent.getBooleanExtra(EXTRA_USE_TMUX, false)
         if (host != null && username != null) {
             val privateKey = SshKeyManager(this).getPrivateKeyPem() ?: run {
@@ -165,7 +164,7 @@ class TerminalActivity : AppCompatActivity() {
                 return finish()
             }
             pendingParams = SshConnectionService.ConnectionParams(
-                host, port, username, privateKey, command, useTmux,
+                host, port, username, privateKey, useTmux,
             )
         }
 
@@ -916,7 +915,6 @@ class TerminalActivity : AppCompatActivity() {
         const val EXTRA_HOST = "host"
         const val EXTRA_PORT = "port"
         const val EXTRA_USERNAME = "username"
-        const val EXTRA_POST_CONNECT_COMMAND = "post_connect_command"
         const val EXTRA_USE_TMUX = "use_tmux"
         private const val DEFAULT_COLUMNS = 80
         private const val DEFAULT_ROWS = 24

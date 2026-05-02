@@ -42,25 +42,23 @@ class SshSession(
     /**
      * Open an interactive session.
      *
-     * With no [initialCommand] and no [useTmux], starts a normal login shell.
+     * When [useTmux] is false, starts a normal login shell.
      *
-     * Otherwise runs a command via `bash -lc` on the remote so ~/.profile /
-     * ~/.bashrc are sourced (PATH, aliases, nvm, etc. are available). When
-     * [useTmux] is true, the command is wrapped in
-     * `tmux new-session -A -s <name>` so the session survives disconnects:
-     * reconnecting attaches to the existing session, or creates a new one if
-     * none exists. When the session command exits, the SSH channel closes.
+     * When [useTmux] is true, runs `tmux new-session -A -s <name>` via
+     * `bash -lc` so ~/.profile / ~/.bashrc are sourced (PATH, aliases, nvm,
+     * etc. are available) and the session survives disconnects: reconnecting
+     * attaches to the existing session, or creates a new one if none exists.
+     * When the session command exits, the SSH channel closes.
      */
     fun openShell(
         columns: Int,
         rows: Int,
-        initialCommand: String? = null,
         useTmux: Boolean = false,
     ) {
         val conn = connection ?: throw IllegalStateException("Not connected")
         val sess = conn.openSession()
         sess.requestPTY("xterm-256color", columns, rows, 0, 0, null)
-        val remoteCommand = buildRemoteCommand(initialCommand, useTmux)
+        val remoteCommand = buildRemoteCommand(useTmux)
         if (remoteCommand == null) {
             sess.startShell()
         } else {
@@ -69,28 +67,19 @@ class SshSession(
         session = sess
     }
 
-    private fun buildRemoteCommand(initialCommand: String?, useTmux: Boolean): String? {
-        val trimmed = initialCommand?.takeIf { it.isNotBlank() }
-        if (!useTmux && trimmed == null) return null
+    private fun buildRemoteCommand(useTmux: Boolean): String? {
+        if (!useTmux) return null
 
-        val inner = if (useTmux) {
-            buildString {
-                // Configure tmux to broadcast the active pane's foreground
-                // command as the OSC window title so the client can detect the
-                // running app and surface app-specific shortcut keys. Chained
-                // into one tmux invocation so the options apply to the same
-                // server we then attach to.
-                append("tmux set-option -g set-titles on \\; ")
-                append("set-option -g set-titles-string \"#{pane_current_command}\" \\; ")
-                append("new-session -A -s ")
-                append(TMUX_SESSION_NAME)
-                if (trimmed != null) {
-                    append(' ')
-                    append(shellQuote(trimmed))
-                }
-            }
-        } else {
-            trimmed!!
+        val inner = buildString {
+            // Configure tmux to broadcast the active pane's foreground
+            // command as the OSC window title so the client can detect the
+            // running app and surface app-specific shortcut keys. Chained
+            // into one tmux invocation so the options apply to the same
+            // server we then attach to.
+            append("tmux set-option -g set-titles on \\; ")
+            append("set-option -g set-titles-string \"#{pane_current_command}\" \\; ")
+            append("new-session -A -s ")
+            append(TMUX_SESSION_NAME)
         }
         return "bash -lc ${shellQuote(inner)}"
     }

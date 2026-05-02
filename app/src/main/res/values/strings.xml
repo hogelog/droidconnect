@@ -8,11 +8,6 @@
     <string name="host">Host</string>
     <string name="port">Port</string>
     <string name="username">Username</string>
-    <string name="post_connect_command">Post-connection command</string>
-    <string name="post_connect_command_helper">Leave empty to start an interactive shell</string>
-    <string name="save_post_connect_command">Save command</string>
-    <string name="post_connect_command_saved">Command saved</string>
-    <string name="post_connect_command_empty">Enter a command to save</string>
     <string name="use_tmux">Use tmux session</string>
     <string name="use_tmux_helper">Attach to an existing tmux session or create one, so the shell survives disconnects</string>
     <string name="public_key">Public Key</string>

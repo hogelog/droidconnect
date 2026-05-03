@@ -19,6 +19,7 @@ import android.view.GestureDetector
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.View
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
@@ -61,8 +62,12 @@ class TerminalActivity : AppCompatActivity() {
     private var ctrlButton: Button? = null
 
     // Whether this connection is using tmux. Drives the tmux pane shortcuts
-    // (prefix C-o + create/next/prev) in the context shortcut bar.
+    // (prefix C-o + create/next/prev) in the FAB speed dial.
     private var useTmux = false
+
+    // FAB speed dial expansion state. Toggled by tapping the main FAB; child
+    // actions are gone-by-default and animated in/out.
+    private var fabExpanded = false
 
     private var fontSizePx = DEFAULT_FONT_SIZE_PX
     private val terminalPrefs by lazy { getSharedPreferences(PREFS_TERMINAL, Context.MODE_PRIVATE) }
@@ -173,6 +178,7 @@ class TerminalActivity : AppCompatActivity() {
         setupTerminalView()
         setupTerminalScrollRouting()
         setupAuxKeyBar()
+        setupFabSpeedDial()
 
         binding.btnDisconnect.setOnClickListener {
             service?.shutdown()
@@ -231,23 +237,49 @@ class TerminalActivity : AppCompatActivity() {
         for ((label, action) in keys) {
             bar.addView(makeAuxButton(label, action), auxButtonLayoutParams())
         }
+    }
 
-        // tmux window shortcuts and Select sit permanently on the right end of
-        // the upper row so they stay reachable regardless of which app context
-        // is active. Window shortcuts come first so Select stays anchored on
-        // the far right.
-        if (useTmux) {
-            for ((label, action) in tmuxWindowShortcuts()) {
-                binding.contextRightBar.addView(
-                    makeAuxButton(label, action),
-                    auxButtonLayoutParams(),
-                )
-            }
+    /**
+     * Wire up the bottom-end FAB and its speed-dial children. The dial holds
+     * Select plus, when [useTmux] is true, the tmux window navigation actions
+     * — they used to live as pinned buttons on the right edge of the context
+     * row but rarely needed real-time access, so a collapsed FAB reclaims that
+     * space for the terminal.
+     */
+    private fun setupFabSpeedDial() {
+        // Order top-to-bottom in the expanded column. Select sits at the
+        // bottom — closest to the main FAB — so the most generally useful
+        // action stays the easiest to reach with one thumb tap.
+        val actions = mutableListOf<Pair<String, () -> Unit>>()
+        if (useTmux) actions += tmuxWindowShortcuts()
+        actions += "Select" to ::startTextSelection
+
+        val container = binding.fabActions
+        for ((label, action) in actions) {
+            container.addView(
+                makeAuxButton(label) {
+                    action()
+                    setFabExpanded(false)
+                },
+                auxButtonLayoutParams(),
+            )
         }
-        binding.contextRightBar.addView(
-            makeAuxButton("Select", ::startTextSelection),
-            auxButtonLayoutParams(),
-        )
+
+        binding.fabMain.setOnClickListener { setFabExpanded(!fabExpanded) }
+        setFabExpanded(false)
+    }
+
+    private fun setFabExpanded(expanded: Boolean) {
+        fabExpanded = expanded
+        binding.fabActions.visibility = if (expanded) View.VISIBLE else View.GONE
+        // Quarter turn gives the menu icon a subtle rotated cue when open
+        // without needing a second drawable. Dim to 0.3 alpha while collapsed
+        // so the FAB recedes from the terminal content until it's needed.
+        binding.fabMain.animate()
+            .rotation(if (expanded) 90f else 0f)
+            .alpha(if (expanded) 1f else FAB_COLLAPSED_ALPHA)
+            .setDuration(150)
+            .start()
     }
 
     private fun auxButtonLayoutParams(): LinearLayout.LayoutParams {
@@ -280,8 +312,8 @@ class TerminalActivity : AppCompatActivity() {
      * Rebuild the context shortcut bar above the static aux key bar based on
      * the active tmux pane's foreground command (delivered as the OSC window
      * title once `tmux set -g set-titles on` is in effect; configured by
-     * [SshSession]). The row itself stays visible regardless of [app] because
-     * the Select button anchored on the right end belongs to it.
+     * [SshSession]). When no shortcuts apply the row collapses to zero height,
+     * since its only content lives inside [contextKeyBar].
      */
     private fun applyAppContext(app: String?) {
         val normalized = app?.trim()?.lowercase()
@@ -294,10 +326,10 @@ class TerminalActivity : AppCompatActivity() {
     }
 
     /**
-     * tmux window navigation buttons rendered on the right end of the context
-     * row, just left of Select. Prefix is hard-coded to C-o (0x0F) to match
-     * the bootstrap in [SshSession]: `prefix + c` new window, `prefix + n`
-     * next window, `prefix + p` previous window.
+     * tmux window navigation actions surfaced through the FAB speed dial when
+     * [useTmux] is true. Prefix is hard-coded to C-o (0x0F) to match the
+     * bootstrap in [SshSession]: `prefix + c` new window, `prefix + n` next
+     * window, `prefix + p` previous window.
      */
     private fun tmuxWindowShortcuts(): List<Pair<String, () -> Unit>> {
         fun sendBytes(bytes: ByteArray): () -> Unit = {
@@ -957,6 +989,7 @@ class TerminalActivity : AppCompatActivity() {
         private const val PREFS_TERMINAL = "terminal"
         private const val KEY_FONT_SIZE_PX = "font_size_px"
         private const val TAG = "TerminalActivity"
+        private const val FAB_COLLAPSED_ALPHA = 0.3f
 
         // Mirrors termux's private DECSET_BIT_BRACKETED_PASTE_MODE (DECSET 2004).
         private const val DECSET_BIT_BRACKETED_PASTE_MODE = 1 shl 10

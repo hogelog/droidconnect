@@ -57,9 +57,7 @@ class TerminalActivity : AppCompatActivity() {
     private var pendingParams: SshConnectionService.ConnectionParams? = null
 
     // Sticky modifier state: applies to the next single key input, then resets.
-    private var stickyShift = false
     private var stickyCtrl = false
-    private var shiftButton: Button? = null
     private var ctrlButton: Button? = null
 
     private var fontSizePx = DEFAULT_FONT_SIZE_PX
@@ -215,8 +213,6 @@ class TerminalActivity : AppCompatActivity() {
 
         ctrlButton = makeAuxButton("Ctrl") { setCtrlSticky(!stickyCtrl) }
             .also { styleModifierButton(it); bar.addView(it, auxButtonLayoutParams()) }
-        shiftButton = makeAuxButton("Shift") { setShiftSticky(!stickyShift) }
-            .also { styleModifierButton(it); bar.addView(it, auxButtonLayoutParams()) }
 
         val keys: List<Pair<String, () -> Unit>> = listOf(
             "ESC" to sendRaw(byteArrayOf(0x1B)),
@@ -320,18 +316,12 @@ class TerminalActivity : AppCompatActivity() {
         }
     }
 
-    private fun setShiftSticky(on: Boolean) {
-        stickyShift = on
-        shiftButton?.isActivated = on
-    }
-
     private fun setCtrlSticky(on: Boolean) {
         stickyCtrl = on
         ctrlButton?.isActivated = on
     }
 
     private fun clearStickyModifiers() {
-        if (stickyShift) setShiftSticky(false)
         if (stickyCtrl) setCtrlSticky(false)
     }
 
@@ -401,12 +391,11 @@ class TerminalActivity : AppCompatActivity() {
         val metaState = event.metaState
         val controlDown = event.isCtrlPressed || stickyCtrl
         val leftAltDown = (metaState and KeyEvent.META_ALT_LEFT_ON) != 0
-        val shiftDown = event.isShiftPressed || stickyShift
 
         var keyMod = 0
         if (controlDown) keyMod = keyMod or KeyHandler.KEYMOD_CTRL
         if (event.isAltPressed || leftAltDown) keyMod = keyMod or KeyHandler.KEYMOD_ALT
-        if (shiftDown) keyMod = keyMod or KeyHandler.KEYMOD_SHIFT
+        if (event.isShiftPressed) keyMod = keyMod or KeyHandler.KEYMOD_SHIFT
         if (event.isNumLockOn) keyMod = keyMod or KeyHandler.KEYMOD_NUM_LOCK
 
         if (!event.isFunctionPressed) {
@@ -427,8 +416,7 @@ class TerminalActivity : AppCompatActivity() {
         if (!rightAltDown) {
             bitsToClear = bitsToClear or KeyEvent.META_ALT_ON or KeyEvent.META_ALT_LEFT_ON
         }
-        var effectiveMetaState = metaState and bitsToClear.inv()
-        if (shiftDown) effectiveMetaState = effectiveMetaState or KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
+        val effectiveMetaState = metaState and bitsToClear.inv()
 
         val result = event.getUnicodeChar(effectiveMetaState)
         if (result == 0) return false
@@ -452,7 +440,6 @@ class TerminalActivity : AppCompatActivity() {
         val cursorApp = emu?.isCursorKeysApplicationMode == true
         val keypadApp = emu?.isKeypadApplicationMode == true
         var keyMod = 0
-        if (stickyShift) keyMod = keyMod or KeyHandler.KEYMOD_SHIFT
         if (stickyCtrl) keyMod = keyMod or KeyHandler.KEYMOD_CTRL
         val code = KeyHandler.getCode(keyCode, keyMod, cursorApp, keypadApp) ?: return
         writeToSsh(code.toByteArray(Charsets.UTF_8))
@@ -519,18 +506,16 @@ class TerminalActivity : AppCompatActivity() {
         imeProxy.onComposingTextChanged = { text -> updatePreedit(text) }
         imeProxy.onCommitText = { text ->
             // Composition was committed — flush the bytes through the same
-            // path used by hardware character input. When a sticky Ctrl /
-            // Shift is armed, apply it to the first code point only and
-            // pass the remainder verbatim: soft IMEs sometimes batch
-            // consecutive taps into a single commit (e.g. typing "op"
-            // arrives as one 2-char commitText), and the user expects
-            // "Ctrl" + "op" to send Ctrl-o followed by a plain "p".
+            // path used by hardware character input. When sticky Ctrl is
+            // armed, apply it to the first code point only and pass the
+            // remainder verbatim: soft IMEs sometimes batch consecutive
+            // taps into a single commit (e.g. typing "op" arrives as one
+            // 2-char commitText), and the user expects "Ctrl" + "op" to
+            // send Ctrl-o followed by a plain "p".
             val str = text.toString()
-            if (str.isNotEmpty() && (stickyCtrl || stickyShift)) {
+            if (str.isNotEmpty() && stickyCtrl) {
                 val firstCp = str.codePointAt(0)
-                var cp = fixBluetoothCodePoint(firstCp)
-                if (stickyShift) cp = Character.toUpperCase(cp)
-                if (stickyCtrl) cp = applyCtrl(cp)
+                val cp = applyCtrl(fixBluetoothCodePoint(firstCp))
                 writeCodePointToSsh(cp, false)
                 val firstLen = Character.charCount(firstCp)
                 if (str.length > firstLen) {
@@ -891,11 +876,7 @@ class TerminalActivity : AppCompatActivity() {
             return v
         }
         override fun readAltKey(): Boolean = false
-        override fun readShiftKey(): Boolean {
-            val v = stickyShift
-            if (v) setShiftSticky(false)
-            return v
-        }
+        override fun readShiftKey(): Boolean = false
         override fun readFnKey(): Boolean = false
         override fun onEmulatorSet() {}
 

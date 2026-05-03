@@ -24,7 +24,9 @@ import android.view.View
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
+import android.widget.GridLayout
 import android.widget.LinearLayout
+import android.widget.Space
 import android.widget.Toast
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -257,24 +259,36 @@ class TerminalActivity : AppCompatActivity() {
      * space for the terminal.
      */
     private fun setupFabSpeedDial() {
-        // Order top-to-bottom in the expanded column. Select sits at the
-        // bottom — closest to the main FAB — so the most generally useful
-        // action stays the easiest to reach with one thumb tap.
-        val actions = mutableListOf<Pair<String, () -> Unit>>()
-        if (useTmux) actions += tmuxWindowShortcuts()
-        actions += "\uD83D\uDDBC" to ::launchImagePicker
-        actions += "Select" to ::startTextSelection
-
+        // The dial expands above the FAB as a rounded "menu card" GridLayout.
+        // With tmux it's a 3-column, 2-row rectangle anchored on the right —
+        // a placeholder cell in the bottom-left aligns the per-pane utilities
+        // under the right two cells of the window-management triplet:
+        //     ➕ ⬅️ ➡️
+        //        📋 🖼
+        // Without tmux only the per-pane pair is shown, so the card becomes a
+        // single 2-column row.
         val container = binding.fabActions
-        for ((label, action) in actions) {
-            container.addView(
-                makeAuxButton(label) {
-                    action()
-                    setFabExpanded(false)
-                },
-                auxButtonLayoutParams(),
-            )
+        container.columnCount = if (useTmux) 3 else 2
+
+        fun addFabButton(label: String, action: () -> Unit) {
+            val btn = makeAuxButton(label) {
+                action()
+                setFabExpanded(false)
+            }
+            // Override the bar-button background with the FAB variant: same
+            // fill but with a 1dp stroke, so adjacent buttons in the grid show
+            // a thin inter-cell border without a divider mechanism.
+            btn.background = ContextCompat.getDrawable(this, R.drawable.bg_fab_button)
+            container.addView(btn)
         }
+
+        if (useTmux) {
+            for ((label, action) in tmuxWindowShortcuts()) addFabButton(label, action)
+            // Anchor the bottom row to the right two cells.
+            container.addView(Space(this), GridLayout.LayoutParams())
+        }
+        addFabButton("\uD83D\uDCCB", ::startTextSelection)      // 📋 select
+        addFabButton("\uD83D\uDDBC", ::launchImagePicker)       // 🖼 image picker
 
         binding.fabMain.setOnClickListener { setFabExpanded(!fabExpanded) }
         setFabExpanded(false)
@@ -409,8 +423,8 @@ class TerminalActivity : AppCompatActivity() {
         val prefix: Byte = 0x0F
         return listOf(
             "➕" to sendBytes(byteArrayOf(prefix, 'c'.code.toByte())),
-            "◀" to sendBytes(byteArrayOf(prefix, 'p'.code.toByte())),
-            "▶" to sendBytes(byteArrayOf(prefix, 'n'.code.toByte())),
+            "\u2B05\uFE0F" to sendBytes(byteArrayOf(prefix, 'p'.code.toByte())), // ⬅️
+            "\u27A1\uFE0F" to sendBytes(byteArrayOf(prefix, 'n'.code.toByte())), // ➡️
         )
     }
 

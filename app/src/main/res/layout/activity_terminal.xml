@@ -33,6 +33,23 @@
 
         </FrameLayout>
 
+        <HorizontalScrollView
+            android:id="@+id/tmux_key_scroll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/colorSurfaceVariant"
+            android:scrollbars="none"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:id="@+id/tmux_key_bar"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingHorizontal="4dp" />
+
+        </HorizontalScrollView>
+
         <LinearLayout
             android:id="@+id/context_row"
             android:layout_width="match_parent"

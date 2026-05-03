@@ -29,7 +29,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
-import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import org.hogel.droidconnect.R
 import org.hogel.droidconnect.databinding.ActivityTerminalBinding
 import org.hogel.droidconnect.ssh.SshConnectionService
@@ -258,34 +257,16 @@ class TerminalActivity : AppCompatActivity() {
         val container = binding.fabActions
         for ((label, action) in actions) {
             container.addView(
-                makeFabActionButton(label) {
+                makeAuxButton(label) {
                     action()
                     setFabExpanded(false)
-                    binding.imeProxy.requestFocus()
                 },
-                fabActionLayoutParams(),
+                auxButtonLayoutParams(),
             )
         }
 
         binding.fabMain.setOnClickListener { setFabExpanded(!fabExpanded) }
         setFabExpanded(false)
-    }
-
-    private fun fabActionLayoutParams(): LinearLayout.LayoutParams {
-        val marginPx = dpToPx(4)
-        return LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-        ).apply { setMargins(0, marginPx, 0, marginPx) }
-    }
-
-    private fun makeFabActionButton(
-        label: String,
-        action: () -> Unit,
-    ): ExtendedFloatingActionButton = ExtendedFloatingActionButton(this).apply {
-        text = label
-        isAllCaps = false
-        setOnClickListener { action() }
     }
 
     private fun setFabExpanded(expanded: Boolean) {

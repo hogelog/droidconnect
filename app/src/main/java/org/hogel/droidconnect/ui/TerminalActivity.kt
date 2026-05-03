@@ -232,7 +232,7 @@ class TerminalActivity : AppCompatActivity() {
         }
 
         ctrlButton = makeAuxButton("Ctrl") { setCtrlSticky(!stickyCtrl) }
-            .also { styleModifierButton(it); bar.addView(it, auxButtonLayoutParams()) }
+            .also { styleModifierButton(it); bar.addView(it, keyBarButtonLayoutParams()) }
 
         val keys: List<Pair<String, () -> Unit>> = listOf(
             "ESC" to sendRaw(byteArrayOf(0x1B)),
@@ -245,7 +245,7 @@ class TerminalActivity : AppCompatActivity() {
             "^D" to sendRaw(byteArrayOf(0x04)),
         )
         for ((label, action) in keys) {
-            bar.addView(makeAuxButton(label, action), auxButtonLayoutParams())
+            bar.addView(makeAuxButton(label, action), keyBarButtonLayoutParams())
         }
     }
 
@@ -272,7 +272,7 @@ class TerminalActivity : AppCompatActivity() {
                     action()
                     setFabExpanded(false)
                 },
-                auxButtonLayoutParams(),
+                fabButtonLayoutParams(),
             )
         }
 
@@ -352,24 +352,29 @@ class TerminalActivity : AppCompatActivity() {
         else -> "png"
     }
 
-    private fun auxButtonLayoutParams(): LinearLayout.LayoutParams {
-        val marginPx = dpToPx(2)
-        return LinearLayout.LayoutParams(
+    // Stretches each button to an equal share of the bar's row width with no
+    // inter-button gap, so the bar reads as a solid run of keys instead of a
+    // sparse strip with margins around individual buttons.
+    private fun keyBarButtonLayoutParams(): LinearLayout.LayoutParams =
+        LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+
+    private fun fabButtonLayoutParams(): LinearLayout.LayoutParams =
+        LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT,
             LinearLayout.LayoutParams.WRAP_CONTENT,
-        ).apply { setMargins(marginPx, marginPx, marginPx, marginPx) }
-    }
+        )
 
     private fun makeAuxButton(label: String, action: () -> Unit): Button = Button(this).apply {
-        val minWidthPx = dpToPx(44)
         val minHeightPx = dpToPx(40)
         text = label
         isAllCaps = false
-        minWidth = minWidthPx
-        minimumWidth = minWidthPx
+        minWidth = 0
+        minimumWidth = 0
         minHeight = minHeightPx
         minimumHeight = minHeightPx
-        setPadding(dpToPx(8), 0, dpToPx(8), 0)
+        // Tight horizontal padding so 9 weighted aux keys still fit text on a
+        // phone-width screen without truncation.
+        setPadding(dpToPx(4), 0, dpToPx(4), 0)
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
         isFocusable = false
         setOnClickListener {
@@ -391,7 +396,7 @@ class TerminalActivity : AppCompatActivity() {
         val bar = binding.contextKeyBar
         bar.removeAllViews()
         for ((label, action) in shortcuts) {
-            bar.addView(makeAuxButton(label, action), auxButtonLayoutParams())
+            bar.addView(makeAuxButton(label, action), keyBarButtonLayoutParams())
         }
     }
 

@@ -519,8 +519,26 @@ class TerminalActivity : AppCompatActivity() {
         imeProxy.onComposingTextChanged = { text -> updatePreedit(text) }
         imeProxy.onCommitText = { text ->
             // Composition was committed — flush the bytes through the same
-            // path used by hardware character input.
-            writeToSsh(text.toString().toByteArray(Charsets.UTF_8))
+            // path used by hardware character input. When a sticky Ctrl /
+            // Shift is armed, apply it to the first code point only and
+            // pass the remainder verbatim: soft IMEs sometimes batch
+            // consecutive taps into a single commit (e.g. typing "op"
+            // arrives as one 2-char commitText), and the user expects
+            // "Ctrl" + "op" to send Ctrl-o followed by a plain "p".
+            val str = text.toString()
+            if (str.isNotEmpty() && (stickyCtrl || stickyShift)) {
+                val firstCp = str.codePointAt(0)
+                var cp = fixBluetoothCodePoint(firstCp)
+                if (stickyShift) cp = Character.toUpperCase(cp)
+                if (stickyCtrl) cp = applyCtrl(cp)
+                writeCodePointToSsh(cp, false)
+                val firstLen = Character.charCount(firstCp)
+                if (str.length > firstLen) {
+                    writeToSsh(str.substring(firstLen).toByteArray(Charsets.UTF_8))
+                }
+            } else {
+                writeToSsh(str.toByteArray(Charsets.UTF_8))
+            }
             clearStickyModifiers()
         }
         imeProxy.onHardwareKey = { keyCode, event -> processHardwareKey(keyCode, event) }

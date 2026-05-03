@@ -234,7 +234,7 @@ class TerminalActivity : AppCompatActivity() {
         }
 
         ctrlButton = makeAuxButton("Ctrl") { setCtrlSticky(!stickyCtrl) }
-            .also { bar.addView(it, auxButtonLayoutParams()) }
+            .also { styleModifierButton(it); bar.addView(it, auxButtonLayoutParams()) }
 
         val keys: List<Pair<String, () -> Unit>> = listOf(
             "ESC" to sendRaw(byteArrayOf(0x1B)),
@@ -366,11 +366,13 @@ class TerminalActivity : AppCompatActivity() {
         else -> "png"
     }
 
-    private fun auxButtonLayoutParams(): LinearLayout.LayoutParams =
-        LinearLayout.LayoutParams(
+    private fun auxButtonLayoutParams(): LinearLayout.LayoutParams {
+        val marginPx = dpToPx(2)
+        return LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT,
             LinearLayout.LayoutParams.WRAP_CONTENT,
-        )
+        ).apply { setMargins(marginPx, marginPx, marginPx, marginPx) }
+    }
 
     private fun makeAuxButton(label: String, action: () -> Unit): Button = Button(this).apply {
         val minWidthPx = dpToPx(44)
@@ -384,14 +386,6 @@ class TerminalActivity : AppCompatActivity() {
         setPadding(dpToPx(8), 0, dpToPx(8), 0)
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
         isFocusable = false
-        // Replace the M3 default ?attr/buttonStyle background, which uses an
-        // InsetDrawable that leaves a visible gap between adjacent buttons.
-        // bg_aux_modifier is a flat fill with no inset, plus a state_activated
-        // branch that the Ctrl sticky button already drives.
-        background = ContextCompat.getDrawable(context, R.drawable.bg_aux_modifier)
-        ContextCompat.getColorStateList(context, R.color.aux_modifier_text)?.let {
-            setTextColor(it)
-        }
         setOnClickListener {
             action()
             binding.imeProxy.requestFocus()
@@ -461,6 +455,13 @@ class TerminalActivity : AppCompatActivity() {
                 "cd " to sendText("cd "),
             )
             else -> emptyList()
+        }
+    }
+
+    private fun styleModifierButton(button: Button) {
+        button.background = ContextCompat.getDrawable(this, R.drawable.bg_aux_modifier)
+        ContextCompat.getColorStateList(this, R.color.aux_modifier_text)?.let {
+            button.setTextColor(it)
         }
     }
 

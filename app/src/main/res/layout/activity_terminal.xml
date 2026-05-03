@@ -73,11 +73,8 @@
                 android:id="@+id/context_key_bar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:divider="@drawable/divider_aux_button"
-                android:dividerPadding="0dp"
                 android:orientation="horizontal"
-                android:paddingHorizontal="4dp"
-                android:showDividers="middle" />
+                android:paddingHorizontal="4dp" />
 
         </HorizontalScrollView>
 
@@ -92,11 +89,8 @@
                 android:id="@+id/aux_key_bar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:divider="@drawable/divider_aux_button"
-                android:dividerPadding="0dp"
                 android:orientation="horizontal"
-                android:paddingHorizontal="4dp"
-                android:showDividers="middle" />
+                android:paddingHorizontal="4dp" />
 
         </HorizontalScrollView>
 

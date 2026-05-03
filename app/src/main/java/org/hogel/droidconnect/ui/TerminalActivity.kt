@@ -257,13 +257,22 @@ class TerminalActivity : AppCompatActivity() {
      * space for the terminal.
      */
     private fun setupFabSpeedDial() {
-        // Order top-to-bottom in the expanded column. Select sits at the
-        // bottom — closest to the main FAB — so the most generally useful
-        // action stays the easiest to reach with one thumb tap.
+        // The dial expands above the FAB as a 2-column grid, populated in
+        // row-major order. With tmux this lets us pair the new-window action
+        // with select on the top row and the prev/next pair on the bottom row:
+        //     ➕ 📋
+        //     ◀ ▶
+        // Without tmux there's no window navigation, so just expose select.
         val actions = mutableListOf<Pair<String, () -> Unit>>()
-        if (useTmux) actions += tmuxWindowShortcuts()
-        actions += "\uD83D\uDDBC" to ::launchImagePicker
-        actions += "Select" to ::startTextSelection
+        if (useTmux) {
+            val tmux = tmuxWindowShortcuts()
+            actions += tmux[0]                                // ➕ new window
+            actions += "\uD83D\uDCCB" to ::startTextSelection // 📋 select
+            actions += tmux[1]                                // ◀ prev window
+            actions += tmux[2]                                // ▶ next window
+        } else {
+            actions += "\uD83D\uDCCB" to ::startTextSelection
+        }
 
         val container = binding.fabActions
         for ((label, action) in actions) {
@@ -272,7 +281,6 @@ class TerminalActivity : AppCompatActivity() {
                     action()
                     setFabExpanded(false)
                 },
-                auxButtonLayoutParams(),
             )
         }
 

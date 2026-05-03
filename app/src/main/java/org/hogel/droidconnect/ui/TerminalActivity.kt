@@ -292,9 +292,11 @@ class TerminalActivity : AppCompatActivity() {
         fabExpanded = expanded
         binding.fabActions.visibility = if (expanded) View.VISIBLE else View.GONE
         // Quarter turn gives the menu icon a subtle rotated cue when open
-        // without needing a second drawable.
+        // without needing a second drawable. Dim to 0.3 alpha while collapsed
+        // so the FAB recedes from the terminal content until it's needed.
         binding.fabMain.animate()
             .rotation(if (expanded) 90f else 0f)
+            .alpha(if (expanded) 1f else FAB_COLLAPSED_ALPHA)
             .setDuration(150)
             .start()
     }
@@ -1006,6 +1008,7 @@ class TerminalActivity : AppCompatActivity() {
         private const val PREFS_TERMINAL = "terminal"
         private const val KEY_FONT_SIZE_PX = "font_size_px"
         private const val TAG = "TerminalActivity"
+        private const val FAB_COLLAPSED_ALPHA = 0.3f
 
         // Mirrors termux's private DECSET_BIT_BRACKETED_PASTE_MODE (DECSET 2004).
         private const val DECSET_BIT_BRACKETED_PASTE_MODE = 1 shl 10

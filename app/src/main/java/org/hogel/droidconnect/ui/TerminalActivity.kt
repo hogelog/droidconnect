@@ -307,8 +307,8 @@ class TerminalActivity : AppCompatActivity() {
         val prefix: Byte = 0x0F
         return listOf(
             "➕" to sendBytes(byteArrayOf(prefix, 'c'.code.toByte())),
-            "▶" to sendBytes(byteArrayOf(prefix, 'n'.code.toByte())),
             "◀" to sendBytes(byteArrayOf(prefix, 'p'.code.toByte())),
+            "▶" to sendBytes(byteArrayOf(prefix, 'n'.code.toByte())),
         )
     }
 

@@ -60,6 +60,10 @@ class TerminalActivity : AppCompatActivity() {
     private var stickyCtrl = false
     private var ctrlButton: Button? = null
 
+    // Whether this connection is using tmux. Drives the tmux pane shortcuts
+    // (prefix C-o + create/next/prev) in the context shortcut bar.
+    private var useTmux = false
+
     private var fontSizePx = DEFAULT_FONT_SIZE_PX
     private val terminalPrefs by lazy { getSharedPreferences(PREFS_TERMINAL, Context.MODE_PRIVATE) }
 
@@ -155,7 +159,7 @@ class TerminalActivity : AppCompatActivity() {
         val host = intent.getStringExtra(EXTRA_HOST)
         val username = intent.getStringExtra(EXTRA_USERNAME)
         val port = intent.getIntExtra(EXTRA_PORT, 22)
-        val useTmux = intent.getBooleanExtra(EXTRA_USE_TMUX, false)
+        useTmux = intent.getBooleanExtra(EXTRA_USE_TMUX, false)
         if (host != null && username != null) {
             val privateKey = SshKeyManager(this).getPrivateKeyPem() ?: run {
                 Toast.makeText(this, "No SSH key found", Toast.LENGTH_SHORT).show()
@@ -228,8 +232,18 @@ class TerminalActivity : AppCompatActivity() {
             bar.addView(makeAuxButton(label, action), auxButtonLayoutParams())
         }
 
-        // Select sits permanently on the right end of the upper row so it
-        // stays reachable regardless of which app context is active.
+        // tmux window shortcuts and Select sit permanently on the right end of
+        // the upper row so they stay reachable regardless of which app context
+        // is active. Window shortcuts come first so Select stays anchored on
+        // the far right.
+        if (useTmux) {
+            for ((label, action) in tmuxWindowShortcuts()) {
+                binding.contextRightBar.addView(
+                    makeAuxButton(label, action),
+                    auxButtonLayoutParams(),
+                )
+            }
+        }
         binding.contextRightBar.addView(
             makeAuxButton("Select", ::startTextSelection),
             auxButtonLayoutParams(),
@@ -277,6 +291,25 @@ class TerminalActivity : AppCompatActivity() {
         for ((label, action) in shortcuts) {
             bar.addView(makeAuxButton(label, action), auxButtonLayoutParams())
         }
+    }
+
+    /**
+     * tmux window navigation buttons rendered on the right end of the context
+     * row, just left of Select. Prefix is hard-coded to C-o (0x0F) to match
+     * the bootstrap in [SshSession]: `prefix + c` new window, `prefix + n`
+     * next window, `prefix + p` previous window.
+     */
+    private fun tmuxWindowShortcuts(): List<Pair<String, () -> Unit>> {
+        fun sendBytes(bytes: ByteArray): () -> Unit = {
+            writeToSsh(bytes)
+            clearStickyModifiers()
+        }
+        val prefix: Byte = 0x0F
+        return listOf(
+            "➕" to sendBytes(byteArrayOf(prefix, 'c'.code.toByte())),
+            "◀" to sendBytes(byteArrayOf(prefix, 'p'.code.toByte())),
+            "▶" to sendBytes(byteArrayOf(prefix, 'n'.code.toByte())),
+        )
     }
 
     private fun contextShortcutsFor(app: String?): List<Pair<String, () -> Unit>> {

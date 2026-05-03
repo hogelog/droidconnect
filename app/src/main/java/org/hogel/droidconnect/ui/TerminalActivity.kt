@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.graphics.Typeface
+import android.net.Uri
 import android.os.Bundle
 import android.os.IBinder
 import android.os.SystemClock
@@ -25,10 +26,15 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.Toast
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 import org.hogel.droidconnect.R
 import org.hogel.droidconnect.databinding.ActivityTerminalBinding
 import org.hogel.droidconnect.ssh.SshConnectionService
@@ -97,6 +103,10 @@ class TerminalActivity : AppCompatActivity() {
         // the system simply suppresses the notification UI in that case.
         startAndBindService()
     }
+
+    private val imagePickerLauncher = registerForActivityResult(
+        ActivityResultContracts.PickVisualMedia(),
+    ) { uri -> if (uri != null) onImagePicked(uri) }
 
     private val outputListener: (ByteArray) -> Unit = ::handleSshOutput
 
@@ -252,6 +262,7 @@ class TerminalActivity : AppCompatActivity() {
         // action stays the easiest to reach with one thumb tap.
         val actions = mutableListOf<Pair<String, () -> Unit>>()
         if (useTmux) actions += tmuxWindowShortcuts()
+        actions += "\uD83D\uDDBC" to ::launchImagePicker
         actions += "Select" to ::startTextSelection
 
         val container = binding.fabActions
@@ -280,6 +291,65 @@ class TerminalActivity : AppCompatActivity() {
             .alpha(if (expanded) 1f else FAB_COLLAPSED_ALPHA)
             .setDuration(150)
             .start()
+    }
+
+    private fun launchImagePicker() {
+        imagePickerLauncher.launch(
+            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+        )
+    }
+
+    /**
+     * Upload the picked image to the remote host via SCP and, on success,
+     * type its `@/tmp/...` path into the SSH stdin so the user can submit
+     * it to Claude Code by pressing Enter.
+     */
+    private fun onImagePicked(uri: Uri) {
+        val svc = service
+        if (svc == null || svc.state != SshConnectionService.State.CONNECTED) {
+            Toast.makeText(this, R.string.image_upload_not_connected, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val resolver = contentResolver
+        val mime = resolver.getType(uri).orEmpty()
+        val ext = extensionForMime(mime)
+        val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("Asia/Tokyo")
+        }.format(Date())
+        val filename = "droidconnect-$timestamp.$ext"
+        val bytes = try {
+            resolver.openInputStream(uri)?.use { it.readBytes() }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to read picked image", e)
+            null
+        }
+        if (bytes == null) {
+            Toast.makeText(this, R.string.image_upload_read_failed, Toast.LENGTH_SHORT).show()
+            return
+        }
+        Toast.makeText(this, R.string.image_upload_in_progress, Toast.LENGTH_SHORT).show()
+        svc.uploadBytes(bytes, filename, REMOTE_TMP_DIR) { error ->
+            if (error != null) {
+                Toast.makeText(
+                    this,
+                    getString(R.string.image_upload_failed, error.message ?: ""),
+                    Toast.LENGTH_LONG,
+                ).show()
+                return@uploadBytes
+            }
+            val pathRef = "@$REMOTE_TMP_DIR/$filename "
+            writeToSsh(pathRef.toByteArray(Charsets.UTF_8))
+        }
+    }
+
+    private fun extensionForMime(mime: String): String = when (mime.lowercase()) {
+        "image/png" -> "png"
+        "image/jpeg", "image/jpg" -> "jpg"
+        "image/webp" -> "webp"
+        "image/gif" -> "gif"
+        "image/heic" -> "heic"
+        "image/heif" -> "heif"
+        else -> "png"
     }
 
     private fun auxButtonLayoutParams(): LinearLayout.LayoutParams {
@@ -1005,5 +1075,9 @@ class TerminalActivity : AppCompatActivity() {
         // default response to a wheel event is three lines, so stepping every
         // two rows works out to a comfortable ~1.5× amplification.
         private const val SCROLL_LINES_PER_WHEEL = 2f
+
+        // Picked images are uploaded under /tmp on the remote host so they
+        // are wiped automatically on reboot — no explicit cleanup is needed.
+        private const val REMOTE_TMP_DIR = "/tmp"
     }
 }

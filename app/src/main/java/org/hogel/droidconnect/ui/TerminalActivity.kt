@@ -19,7 +19,6 @@ import android.view.GestureDetector
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import android.view.MotionEvent
-import android.view.View
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
@@ -174,7 +173,6 @@ class TerminalActivity : AppCompatActivity() {
         setupTerminalView()
         setupTerminalScrollRouting()
         setupAuxKeyBar()
-        setupTmuxBar()
 
         binding.btnDisconnect.setOnClickListener {
             service?.shutdown()
@@ -234,8 +232,18 @@ class TerminalActivity : AppCompatActivity() {
             bar.addView(makeAuxButton(label, action), auxButtonLayoutParams())
         }
 
-        // Select sits permanently on the right end of the upper row so it
-        // stays reachable regardless of which app context is active.
+        // tmux window shortcuts and Select sit permanently on the right end of
+        // the upper row so they stay reachable regardless of which app context
+        // is active. Window shortcuts come first so Select stays anchored on
+        // the far right.
+        if (useTmux) {
+            for ((label, action) in tmuxWindowShortcuts()) {
+                binding.contextRightBar.addView(
+                    makeAuxButton(label, action),
+                    auxButtonLayoutParams(),
+                )
+            }
+        }
         binding.contextRightBar.addView(
             makeAuxButton("Select", ::startTextSelection),
             auxButtonLayoutParams(),
@@ -277,10 +285,7 @@ class TerminalActivity : AppCompatActivity() {
      */
     private fun applyAppContext(app: String?) {
         val normalized = app?.trim()?.lowercase()
-        val shortcuts = buildList {
-            if (useTmux) add(tmuxPrefixShortcut())
-            addAll(contextShortcutsFor(normalized))
-        }
+        val shortcuts = contextShortcutsFor(normalized)
         val bar = binding.contextKeyBar
         bar.removeAllViews()
         for ((label, action) in shortcuts) {
@@ -289,25 +294,11 @@ class TerminalActivity : AppCompatActivity() {
     }
 
     /**
-     * Populate the dedicated tmux row above the context bar with window
-     * navigation buttons. Hidden when the connection isn't using tmux.
-     *
-     * tmux key bindings: `prefix + c` new window, `prefix + n` next window,
-     * `prefix + p` previous window. Prefix is hard-coded to C-o (0x0F) to
-     * match the bootstrap in [SshSession].
+     * tmux window navigation buttons rendered on the right end of the context
+     * row, just left of Select. Prefix is hard-coded to C-o (0x0F) to match
+     * the bootstrap in [SshSession]: `prefix + c` new window, `prefix + n`
+     * next window, `prefix + p` previous window.
      */
-    private fun setupTmuxBar() {
-        if (!useTmux) {
-            binding.tmuxKeyScroll.visibility = View.GONE
-            return
-        }
-        binding.tmuxKeyScroll.visibility = View.VISIBLE
-        val bar = binding.tmuxKeyBar
-        for ((label, action) in tmuxWindowShortcuts()) {
-            bar.addView(makeAuxButton(label, action), auxButtonLayoutParams())
-        }
-    }
-
     private fun tmuxWindowShortcuts(): List<Pair<String, () -> Unit>> {
         fun sendBytes(bytes: ByteArray): () -> Unit = {
             writeToSsh(bytes)
@@ -319,19 +310,6 @@ class TerminalActivity : AppCompatActivity() {
             "▶" to sendBytes(byteArrayOf(prefix, 'n'.code.toByte())),
             "◀" to sendBytes(byteArrayOf(prefix, 'p'.code.toByte())),
         )
-    }
-
-    /**
-     * The tmux prefix (C-o) as a standalone button, prepended to the context
-     * shortcut bar so it stays adjacent to per-app shortcuts. Lets the user
-     * compose ad-hoc tmux commands (e.g. detach, list-keys) via the soft IME.
-     */
-    private fun tmuxPrefixShortcut(): Pair<String, () -> Unit> {
-        val send: () -> Unit = {
-            writeToSsh(byteArrayOf(0x0F))
-            clearStickyModifiers()
-        }
-        return "C-o" to send
     }
 
     private fun contextShortcutsFor(app: String?): List<Pair<String, () -> Unit>> {

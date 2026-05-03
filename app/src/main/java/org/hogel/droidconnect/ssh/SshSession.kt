@@ -1,6 +1,7 @@
 package org.hogel.droidconnect.ssh
 
 import com.trilead.ssh2.Connection
+import com.trilead.ssh2.SCPClient
 import com.trilead.ssh2.ServerHostKeyVerifier
 import com.trilead.ssh2.Session
 import java.io.InputStream
@@ -92,6 +93,17 @@ class SshSession(
 
     fun resizeWindow(columns: Int, rows: Int) {
         session?.resizePTY(columns, rows, 0, 0)
+    }
+
+    /**
+     * Upload [bytes] to [remoteDir] on the remote host as [filename] via SCP.
+     * Opens its own SSH session over the existing [Connection], so it does
+     * not interfere with the interactive shell session. Blocking; call from
+     * a background thread.
+     */
+    fun uploadBytes(bytes: ByteArray, filename: String, remoteDir: String) {
+        val conn = connection ?: throw IllegalStateException("Not connected")
+        SCPClient(conn).put(bytes, filename, remoteDir)
     }
 
     /** Send an SSH_MSG_IGNORE packet to keep NAT/firewall mappings warm. */

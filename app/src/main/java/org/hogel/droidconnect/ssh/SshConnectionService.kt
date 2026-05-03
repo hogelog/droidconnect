@@ -72,6 +72,12 @@ class SshConnectionService : Service() {
         Thread(r, "ssh-write").apply { isDaemon = true }
     }
 
+    // SCP uploads run on a separate executor so they don't block keystroke
+    // writes on `sshWriteExecutor` while a multi-MB image is being streamed.
+    private val scpExecutor = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "ssh-scp").apply { isDaemon = true }
+    }
+
     private val keepaliveExecutor = Executors.newSingleThreadScheduledExecutor { r ->
         Thread(r, "ssh-keepalive").apply { isDaemon = true }
     }
@@ -235,6 +241,34 @@ class SshConnectionService : Service() {
         }
     }
 
+    /**
+     * Upload [bytes] to the remote host as [remoteDir]/[filename] via SCP.
+     * [onResult] is invoked on the main thread with `null` on success or the
+     * thrown error on failure.
+     */
+    fun uploadBytes(
+        bytes: ByteArray,
+        filename: String,
+        remoteDir: String,
+        onResult: (Throwable?) -> Unit,
+    ) {
+        val ssh = session
+        if (ssh == null || state != State.CONNECTED) {
+            mainHandler.post { onResult(IllegalStateException("Not connected")) }
+            return
+        }
+        scpExecutor.execute {
+            val error = try {
+                ssh.uploadBytes(bytes, filename, remoteDir)
+                null
+            } catch (e: Throwable) {
+                Log.e(TAG, "SCP upload failed", e)
+                e
+            }
+            mainHandler.post { onResult(error) }
+        }
+    }
+
     fun resizeWindow(columns: Int, rows: Int) {
         // resize sends a packet, so it must not run on the main thread.
         runCatching {
@@ -256,6 +290,7 @@ class SshConnectionService : Service() {
 
     override fun onDestroy() {
         sshWriteExecutor.shutdownNow()
+        scpExecutor.shutdownNow()
         keepaliveExecutor.shutdownNow()
         super.onDestroy()
     }

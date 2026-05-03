@@ -60,6 +60,10 @@ class TerminalActivity : AppCompatActivity() {
     private var stickyCtrl = false
     private var ctrlButton: Button? = null
 
+    // Whether this connection is using tmux. Drives the tmux pane shortcuts
+    // (prefix C-o + create/next/prev) in the context shortcut bar.
+    private var useTmux = false
+
     private var fontSizePx = DEFAULT_FONT_SIZE_PX
     private val terminalPrefs by lazy { getSharedPreferences(PREFS_TERMINAL, Context.MODE_PRIVATE) }
 
@@ -155,7 +159,7 @@ class TerminalActivity : AppCompatActivity() {
         val host = intent.getStringExtra(EXTRA_HOST)
         val username = intent.getStringExtra(EXTRA_USERNAME)
         val port = intent.getIntExtra(EXTRA_PORT, 22)
-        val useTmux = intent.getBooleanExtra(EXTRA_USE_TMUX, false)
+        useTmux = intent.getBooleanExtra(EXTRA_USE_TMUX, false)
         if (host != null && username != null) {
             val privateKey = SshKeyManager(this).getPrivateKeyPem() ?: run {
                 Toast.makeText(this, "No SSH key found", Toast.LENGTH_SHORT).show()
@@ -271,12 +275,34 @@ class TerminalActivity : AppCompatActivity() {
      */
     private fun applyAppContext(app: String?) {
         val normalized = app?.trim()?.lowercase()
-        val shortcuts = contextShortcutsFor(normalized)
+        val shortcuts = buildList {
+            if (useTmux) addAll(tmuxShortcuts())
+            addAll(contextShortcutsFor(normalized))
+        }
         val bar = binding.contextKeyBar
         bar.removeAllViews()
         for ((label, action) in shortcuts) {
             bar.addView(makeAuxButton(label, action), auxButtonLayoutParams())
         }
+    }
+
+    /**
+     * Shortcuts for driving tmux from the soft key bar. The prefix is hard-coded
+     * to C-o (0x0F); pane operations send the prefix followed by the relevant
+     * tmux default binding (`"` split, `o` next pane, `;` last pane).
+     */
+    private fun tmuxShortcuts(): List<Pair<String, () -> Unit>> {
+        fun sendBytes(bytes: ByteArray): () -> Unit = {
+            writeToSsh(bytes)
+            clearStickyModifiers()
+        }
+        val prefix: Byte = 0x0F
+        return listOf(
+            "🅾" to sendBytes(byteArrayOf(prefix)),
+            "➕" to sendBytes(byteArrayOf(prefix, '"'.code.toByte())),
+            "▶" to sendBytes(byteArrayOf(prefix, 'o'.code.toByte())),
+            "◀" to sendBytes(byteArrayOf(prefix, ';'.code.toByte())),
+        )
     }
 
     private fun contextShortcutsFor(app: String?): List<Pair<String, () -> Unit>> {

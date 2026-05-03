@@ -519,8 +519,19 @@ class TerminalActivity : AppCompatActivity() {
         imeProxy.onComposingTextChanged = { text -> updatePreedit(text) }
         imeProxy.onCommitText = { text ->
             // Composition was committed — flush the bytes through the same
-            // path used by hardware character input.
-            writeToSsh(text.toString().toByteArray(Charsets.UTF_8))
+            // path used by hardware character input. For single-character
+            // commits (typical ASCII soft-keyboard taps), apply any sticky
+            // Ctrl/Shift the user has armed via the aux bar; multi-character
+            // commits (kana → kanji confirmation, etc.) are sent verbatim.
+            val str = text.toString()
+            if (str.length == 1 && (stickyCtrl || stickyShift)) {
+                var cp = fixBluetoothCodePoint(str.codePointAt(0))
+                if (stickyShift) cp = Character.toUpperCase(cp)
+                if (stickyCtrl) cp = applyCtrl(cp)
+                writeCodePointToSsh(cp, false)
+            } else {
+                writeToSsh(str.toByteArray(Charsets.UTF_8))
+            }
             clearStickyModifiers()
         }
         imeProxy.onHardwareKey = { keyCode, event -> processHardwareKey(keyCode, event) }

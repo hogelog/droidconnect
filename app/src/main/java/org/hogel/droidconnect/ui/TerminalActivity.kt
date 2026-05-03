@@ -372,8 +372,8 @@ class TerminalActivity : AppCompatActivity() {
         isFocusable = false
         // Replace the M3 default ?attr/buttonStyle background, which uses an
         // InsetDrawable that leaves a visible gap between adjacent buttons.
-        // bg_aux_modifier is a flat ripple+rounded-rect with no inset, plus a
-        // state_activated branch that the Ctrl sticky button already drives.
+        // bg_aux_modifier is a flat fill with no inset, plus a state_activated
+        // branch that the Ctrl sticky button already drives.
         background = ContextCompat.getDrawable(context, R.drawable.bg_aux_modifier)
         ContextCompat.getColorStateList(context, R.color.aux_modifier_text)?.let {
             setTextColor(it)

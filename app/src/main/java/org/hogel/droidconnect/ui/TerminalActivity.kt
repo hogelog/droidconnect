@@ -422,21 +422,37 @@ class TerminalActivity : AppCompatActivity() {
 
     /**
      * tmux window navigation actions surfaced through the FAB speed dial when
-     * [useTmux] is true. Prefix is hard-coded to C-o (0x0F) to match the
-     * bootstrap in [SshSession]: `prefix + c` new window, `prefix + n` next
-     * window, `prefix + p` previous window.
+     * [useTmux] is true. Sends `prefix + c` new window, `prefix + n` next
+     * window, `prefix + p` previous window. Prefix byte comes from the user's
+     * configured letter on the connection screen (default `o` → C-o), and
+     * must match the prefix bound in the user's tmux config.
      */
     private fun tmuxWindowShortcuts(): List<Pair<String, () -> Unit>> {
         fun sendBytes(bytes: ByteArray): () -> Unit = {
             writeToSsh(bytes)
             clearStickyModifiers()
         }
-        val prefix: Byte = 0x0F
+        val prefix: Byte = readTmuxPrefixByte()
         return listOf(
             "➕" to sendBytes(byteArrayOf(prefix, 'c'.code.toByte())),
             "\u2B05\uFE0F" to sendBytes(byteArrayOf(prefix, 'p'.code.toByte())), // ⬅️
             "\u27A1\uFE0F" to sendBytes(byteArrayOf(prefix, 'n'.code.toByte())), // ➡️
         )
+    }
+
+    /**
+     * Read the tmux prefix letter saved by [MainActivity] and convert it to
+     * the corresponding control byte (`a` → 0x01, `o` → 0x0F, …). Falls back
+     * to C-o on any unexpected value so the FAB shortcuts stay usable.
+     */
+    private fun readTmuxPrefixByte(): Byte {
+        val letter = getSharedPreferences(PREFS_CONNECTION, Context.MODE_PRIVATE)
+            .getString(KEY_TMUX_PREFIX, DEFAULT_TMUX_PREFIX_LETTER)
+            ?.trim()?.lowercase()
+            ?.firstOrNull()
+            ?.takeIf { it in 'a'..'z' }
+            ?: DEFAULT_TMUX_PREFIX_LETTER[0]
+        return (letter.code - 'a'.code + 1).toByte()
     }
 
     private fun contextShortcutsFor(app: String?): List<Pair<String, () -> Unit>> {
@@ -1088,6 +1104,11 @@ class TerminalActivity : AppCompatActivity() {
         private const val FONT_SIZE_STEP_PX = 2
         private const val PREFS_TERMINAL = "terminal"
         private const val KEY_FONT_SIZE_PX = "font_size_px"
+        // Mirrors MainActivity.PREFS_NAME / KEY_TMUX_PREFIX so we can read the
+        // user's prefix without routing it through ConnectionParams.
+        private const val PREFS_CONNECTION = "connection"
+        private const val KEY_TMUX_PREFIX = "tmux_prefix"
+        private const val DEFAULT_TMUX_PREFIX_LETTER = "o"
         private const val TAG = "TerminalActivity"
         private const val FAB_COLLAPSED_ALPHA = 0.3f
 

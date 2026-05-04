@@ -62,6 +62,21 @@ class SshConnectionService : Service() {
     var connectionLabel: String = ""
         private set
 
+    // Whether the active session was opened with tmux. Mirrors
+    // [ConnectionParams.useTmux] so a TerminalActivity that resumes onto an
+    // already-connected service (e.g., from the notification, or from
+    // MainActivity's "open" button after the previous activity instance was
+    // destroyed) can rebuild its tmux-only UI without relying on intent extras.
+    @Volatile
+    var useTmux: Boolean = false
+        private set
+
+    // Last OSC window title observed by an attached TerminalActivity. Cached
+    // here so a freshly created activity can restore its app-context
+    // shortcuts even when the title bytes have rolled out of [outputHistory].
+    @Volatile
+    var lastTitle: String? = null
+
     private val outputLock = Any()
     private val outputHistory = ByteArrayOutputStream()
     private var outputListener: ((ByteArray) -> Unit)? = null
@@ -113,6 +128,8 @@ class SshConnectionService : Service() {
             state = State.CONNECTING
             lastError = null
             connectionLabel = "${params.username}@${params.host}:${params.port}"
+            useTmux = params.useTmux
+            lastTitle = null
             updateNotification(getString(R.string.notification_text_connecting))
             readThread = thread(name = "ssh-read") {
                 runReadLoop(params, columns, rows)

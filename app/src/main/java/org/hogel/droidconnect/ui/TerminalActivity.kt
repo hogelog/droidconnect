@@ -70,7 +70,11 @@ class TerminalActivity : AppCompatActivity() {
     private var ctrlButton: Button? = null
 
     // Whether this connection is using tmux. Drives the tmux pane shortcuts
-    // (prefix C-o + create/next/prev) in the FAB speed dial.
+    // (prefix C-o + create/next/prev) in the FAB speed dial. Authoritative
+    // value lives on [SshConnectionService.useTmux]; this field is populated
+    // from there once the service binds, so the UI reflects the active session
+    // even when the activity was recreated without intent extras (resumed from
+    // the notification or from MainActivity's "open" button).
     private var useTmux = false
 
     // FAB speed dial expansion state. Toggled by tapping the main FAB; child
@@ -154,10 +158,16 @@ class TerminalActivity : AppCompatActivity() {
                 svc.state == SshConnectionService.State.IDLE -> {
                     // Resumed from notification but the service is no longer connected.
                     Toast.makeText(this@TerminalActivity, R.string.disconnected, Toast.LENGTH_SHORT).show()
-                    finish()
+                    return finish()
                 }
                 else -> syncWindowSize(svc)
             }
+            // Build the FAB now that the service has authoritative useTmux,
+            // and re-apply the cached app context so the per-app shortcut row
+            // survives even when the title OSC has rolled out of the buffer.
+            useTmux = svc.useTmux
+            setupFabSpeedDial()
+            svc.lastTitle?.let { applyAppContext(it) }
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
@@ -176,21 +186,24 @@ class TerminalActivity : AppCompatActivity() {
         val host = intent.getStringExtra(EXTRA_HOST)
         val username = intent.getStringExtra(EXTRA_USERNAME)
         val port = intent.getIntExtra(EXTRA_PORT, 22)
-        useTmux = intent.getBooleanExtra(EXTRA_USE_TMUX, false)
         if (host != null && username != null) {
             val privateKey = SshKeyManager(this).getPrivateKeyPem() ?: run {
                 Toast.makeText(this, "No SSH key found", Toast.LENGTH_SHORT).show()
                 return finish()
             }
             pendingParams = SshConnectionService.ConnectionParams(
-                host, port, username, privateKey, useTmux,
+                host, port, username, privateKey,
+                intent.getBooleanExtra(EXTRA_USE_TMUX, false),
             )
         }
 
         setupTerminalView()
         setupTerminalScrollRouting()
         setupAuxKeyBar()
-        setupFabSpeedDial()
+        // The FAB is rebuilt in onServiceConnected once we know the active
+        // session's useTmux value; until then leave the dial empty.
+        binding.fabMain.setOnClickListener { setFabExpanded(!fabExpanded) }
+        setFabExpanded(false)
 
         binding.btnDisconnect.setOnClickListener {
             service?.shutdown()
@@ -268,6 +281,7 @@ class TerminalActivity : AppCompatActivity() {
         // Without tmux only the per-pane pair is shown, so the card becomes a
         // single 2-column row.
         val container = binding.fabActions
+        container.removeAllViews()
         container.columnCount = if (useTmux) 3 else 2
 
         fun addFabButton(label: String, action: () -> Unit) {
@@ -289,9 +303,6 @@ class TerminalActivity : AppCompatActivity() {
         }
         addFabButton("\uD83D\uDCCB", ::startTextSelection)      // 📋 select
         addFabButton("\uD83D\uDDBC", ::launchImagePicker)       // 🖼 image picker
-
-        binding.fabMain.setOnClickListener { setFabExpanded(!fabExpanded) }
-        setFabExpanded(false)
     }
 
     private fun setFabExpanded(expanded: Boolean) {
@@ -954,7 +965,12 @@ class TerminalActivity : AppCompatActivity() {
             binding.terminalView.invalidate()
         }
         override fun onTitleChanged(changedSession: TerminalSession) {
-            applyAppContext(changedSession.title)
+            val title = changedSession.title
+            // Cache on the service so a subsequent activity instance can pick
+            // up the active app context without waiting for tmux to re-emit
+            // the title OSC (it only does so on changes).
+            service?.lastTitle = title
+            applyAppContext(title)
         }
         override fun onSessionFinished(finishedSession: TerminalSession) {}
         override fun onCopyTextToClipboard(session: TerminalSession, text: String?) {

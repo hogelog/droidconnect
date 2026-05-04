@@ -9,11 +9,14 @@
     <string name="port">Port</string>
     <string name="username">Username</string>
     <string name="use_tmux">Use tmux session</string>
-    <string name="use_tmux_helper">Attach to an existing tmux session or create one, so the shell survives disconnects</string>
     <string name="tmux_prefix">Tmux prefix</string>
-    <string name="tmux_prefix_helper">Single letter (a–z) used after Ctrl as your tmux prefix. Default: o (Ctrl+o)</string>
+    <string name="tmux_prefix_dialog_message">Single letter used after Ctrl as your tmux prefix.</string>
+    <string name="tmux_prefix_value">C-%1$s</string>
     <string name="connection_target_summary_empty">Not configured</string>
     <string name="toggle_connection_target">Toggle connection target</string>
+    <string name="toggle_ssh_key">Toggle SSH key</string>
+    <string name="ssh_key_summary_generated">Generated</string>
+    <string name="ssh_key_summary_not_generated">Not generated</string>
     <string name="public_key">Public Key</string>
     <string name="copy_public_key">Copy Public Key</string>
     <string name="key_generated">Ed25519 key generated</string>

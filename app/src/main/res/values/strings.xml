@@ -3,13 +3,15 @@
     <string name="app_name">DroidConnect</string>
     <string name="section_connection">Connection</string>
     <string name="section_ssh_key">SSH Key</string>
+    <string name="section_tmux">tmux</string>
     <string name="connect">Connect</string>
     <string name="generate_key">Generate Key</string>
     <string name="host">Host</string>
     <string name="port">Port</string>
     <string name="username">Username</string>
     <string name="use_tmux">Use tmux session</string>
-    <string name="tmux_prefix">Tmux prefix</string>
+    <string name="prefix">prefix</string>
+    <string name="tmux_prefix">tmux prefix</string>
     <string name="tmux_prefix_dialog_message">Single letter used after Ctrl as your tmux prefix.</string>
     <string name="tmux_prefix_value">C-%1$s</string>
     <string name="connection_target_summary_empty">Not configured</string>

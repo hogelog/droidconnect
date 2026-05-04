@@ -155,7 +155,7 @@ class ShortcutsSettingsActivity : AppCompatActivity() {
         title.text = if (group.contexts.isEmpty()) {
             getString(R.string.shortcuts_context_no_names)
         } else {
-            group.contexts.joinToString(", ")
+            group.contexts.joinToString(",")
         }
 
         groupHeaderRow.setOnClickListener {
@@ -295,7 +295,7 @@ class ShortcutsSettingsActivity : AppCompatActivity() {
         onSave: (ContextGroup) -> Unit,
     ) {
         val dialogBinding = DialogEditContextGroupBinding.inflate(layoutInflater)
-        dialogBinding.editContexts.setText(initial.contexts.joinToString(", "))
+        dialogBinding.editContexts.setText(initial.contexts.joinToString(","))
         AlertDialog.Builder(this)
             .setTitle(titleRes)
             .setView(dialogBinding.root)

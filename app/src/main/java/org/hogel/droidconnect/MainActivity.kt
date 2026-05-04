@@ -63,6 +63,7 @@ class MainActivity : AppCompatActivity() {
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
         restoreConnectionInput()
+        setupConnectionTargetToggle()
 
         updatePublicKeyDisplay()
 
@@ -173,6 +174,7 @@ class MainActivity : AppCompatActivity() {
         prefs.getString(KEY_PORT, null)?.let { binding.editPort.setText(it) }
         prefs.getString(KEY_USERNAME, null)?.let { binding.editUsername.setText(it) }
         binding.switchUseTmux.isChecked = prefs.getBoolean(KEY_USE_TMUX, true)
+        binding.editTmuxPrefix.setText(prefs.getString(KEY_TMUX_PREFIX, DEFAULT_TMUX_PREFIX))
     }
 
     private fun saveConnectionInput() {
@@ -181,7 +183,45 @@ class MainActivity : AppCompatActivity() {
             putString(KEY_PORT, binding.editPort.text.toString())
             putString(KEY_USERNAME, binding.editUsername.text.toString())
             putBoolean(KEY_USE_TMUX, binding.switchUseTmux.isChecked)
+            putString(KEY_TMUX_PREFIX, normalizeTmuxPrefix(binding.editTmuxPrefix.text.toString()))
         }
+    }
+
+    private fun setupConnectionTargetToggle() {
+        // Auto-collapse when a target was already saved; expand on first run so
+        // the user sees the input fields.
+        val hasSavedTarget = !prefs.getString(KEY_HOST, null).isNullOrBlank() &&
+            !prefs.getString(KEY_USERNAME, null).isNullOrBlank()
+        applyConnectionTargetExpanded(!hasSavedTarget)
+        binding.headerConnectionTarget.setOnClickListener {
+            val expanded = binding.containerConnectionTarget.visibility == View.VISIBLE
+            applyConnectionTargetExpanded(!expanded)
+        }
+    }
+
+    private fun applyConnectionTargetExpanded(expanded: Boolean) {
+        binding.containerConnectionTarget.visibility = if (expanded) View.VISIBLE else View.GONE
+        binding.textConnectionTargetSummary.visibility = if (expanded) View.GONE else View.VISIBLE
+        binding.iconConnectionTargetChevron.rotation = if (expanded) 180f else 0f
+        if (!expanded) {
+            binding.textConnectionTargetSummary.text = buildConnectionTargetSummary()
+        }
+    }
+
+    private fun buildConnectionTargetSummary(): String {
+        val host = binding.editHost.text.toString().trim()
+        val username = binding.editUsername.text.toString().trim()
+        val port = binding.editPort.text.toString().trim().ifEmpty { "22" }
+        if (host.isEmpty() || username.isEmpty()) {
+            return getString(R.string.connection_target_summary_empty)
+        }
+        return "$username@$host:$port"
+    }
+
+    private fun normalizeTmuxPrefix(input: String): String {
+        val trimmed = input.trim().lowercase()
+        if (trimmed.length == 1 && trimmed[0] in 'a'..'z') return trimmed
+        return DEFAULT_TMUX_PREFIX
     }
 
     private fun confirmOverwriteAndGenerateKey() {
@@ -210,5 +250,7 @@ class MainActivity : AppCompatActivity() {
         private const val KEY_PORT = "port"
         private const val KEY_USERNAME = "username"
         private const val KEY_USE_TMUX = "use_tmux"
+        private const val KEY_TMUX_PREFIX = "tmux_prefix"
+        private const val DEFAULT_TMUX_PREFIX = "o"
     }
 }

@@ -39,6 +39,9 @@ import java.util.Locale
 import java.util.TimeZone
 import org.hogel.droidconnect.R
 import org.hogel.droidconnect.databinding.ActivityTerminalBinding
+import org.hogel.droidconnect.shortcuts.ShortcutAction
+import org.hogel.droidconnect.shortcuts.ShortcutStore
+import org.hogel.droidconnect.shortcuts.parseShortcutActions
 import org.hogel.droidconnect.ssh.SshConnectionService
 import org.hogel.droidconnect.ssh.SshKeyManager
 import com.termux.terminal.KeyHandler
@@ -83,6 +86,10 @@ class TerminalActivity : AppCompatActivity() {
 
     private var fontSizePx = DEFAULT_FONT_SIZE_PX
     private val terminalPrefs by lazy { getSharedPreferences(PREFS_TERMINAL, Context.MODE_PRIVATE) }
+    private val shortcutStore by lazy { ShortcutStore(this) }
+    // Cached for re-applying after returning from the shortcuts settings screen
+    // without waiting for tmux to re-emit the title OSC.
+    private var lastAppContext: String? = null
 
     // Last (cols, rows) reported to the SSH peer. Used to suppress redundant
     // resize packets when a layout pass doesn't actually change the visible
@@ -219,6 +226,14 @@ class TerminalActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // The shortcuts settings screen lives in another activity. Rebuild the
+        // bars on every resume so edits take effect the moment we come back.
+        setupAuxKeyBar()
+        applyAppContext(lastAppContext)
+    }
+
     private fun startAndBindService() {
         val serviceIntent = Intent(this, SshConnectionService::class.java)
         ContextCompat.startForegroundService(this, serviceIntent)
@@ -236,31 +251,38 @@ class TerminalActivity : AppCompatActivity() {
         svc.resizeWindow(cols, rows)
     }
 
+    /**
+     * Build the always-on aux key bar from [ShortcutStore.loadAux]. The Ctrl
+     * sticky-modifier toggle is fixed (it cannot be expressed as a payload),
+     * so it always sits leftmost; everything to its right is user-editable
+     * via [ShortcutsSettingsActivity].
+     */
     private fun setupAuxKeyBar() {
         val bar = binding.auxKeyBar
-
-        // Sends a raw byte sequence, clearing sticky modifiers (they don't
-        // meaningfully combine with preset ^X shortcuts or ESC).
-        fun sendRaw(bytes: ByteArray): () -> Unit = {
-            writeToSsh(bytes)
-            clearStickyModifiers()
-        }
+        bar.removeAllViews()
 
         ctrlButton = makeAuxButton("Ctrl") { setCtrlSticky(!stickyCtrl) }
             .also { styleModifierButton(it); bar.addView(it, auxButtonLayoutParams()) }
 
-        val keys: List<Pair<String, () -> Unit>> = listOf(
-            "ESC" to sendRaw(byteArrayOf(0x1B)),
-            "TAB" to { sendKeyCode(KeyEvent.KEYCODE_TAB) },
-            "^L" to sendRaw(byteArrayOf(0x0C)),
-            "^R" to sendRaw(byteArrayOf(0x12)),
-            "↓" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_DOWN) },
-            "↑" to { sendKeyCode(KeyEvent.KEYCODE_DPAD_UP) },
-            "^C" to sendRaw(byteArrayOf(0x03)),
-            "^D" to sendRaw(byteArrayOf(0x04)),
-        )
-        for ((label, action) in keys) {
-            bar.addView(makeAuxButton(label, action), auxButtonLayoutParams())
+        for (shortcut in shortcutStore.loadAux()) {
+            bar.addView(
+                makeAuxButton(shortcut.label, runShortcutAction(shortcut.payload)),
+                auxButtonLayoutParams(),
+            )
+        }
+    }
+
+    /** Wraps a payload string into a click handler that runs its actions and
+     *  clears sticky modifiers (the existing aux-bar contract — Ctrl is the
+     *  modifier you'd pair with a shortcut, so consume it on use). */
+    private fun runShortcutAction(payload: String): () -> Unit {
+        val actions = parseShortcutActions(payload)
+        return {
+            for (action in actions) when (action) {
+                is ShortcutAction.SendBytes -> writeToSsh(action.bytes)
+                is ShortcutAction.SendKey -> sendKeyCode(action.keyCode, action.keyMod)
+            }
+            clearStickyModifiers()
         }
     }
 
@@ -411,12 +433,15 @@ class TerminalActivity : AppCompatActivity() {
      * since its only content lives inside [contextKeyBar].
      */
     private fun applyAppContext(app: String?) {
-        val normalized = app?.trim()?.lowercase()
-        val shortcuts = contextShortcutsFor(normalized)
+        lastAppContext = app
+        val shortcuts = shortcutStore.shortcutsForContext(app)
         val bar = binding.contextKeyBar
         bar.removeAllViews()
-        for ((label, action) in shortcuts) {
-            bar.addView(makeAuxButton(label, action), auxButtonLayoutParams())
+        for (shortcut in shortcuts) {
+            bar.addView(
+                makeAuxButton(shortcut.label, runShortcutAction(shortcut.payload)),
+                auxButtonLayoutParams(),
+            )
         }
     }
 
@@ -453,36 +478,6 @@ class TerminalActivity : AppCompatActivity() {
             ?.takeIf { it in 'a'..'z' }
             ?: DEFAULT_TMUX_PREFIX_LETTER[0]
         return (letter.code - 'a'.code + 1).toByte()
-    }
-
-    private fun contextShortcutsFor(app: String?): List<Pair<String, () -> Unit>> {
-        // Sends a literal UTF-8 string to the remote. Used for command stubs
-        // the user can finish typing (no trailing newline).
-        fun sendText(text: String): () -> Unit = {
-            writeToSsh(text.toByteArray(Charsets.UTF_8))
-            clearStickyModifiers()
-        }
-        // Sends raw bytes verbatim. Used for sending control sequences (e.g.,
-        // /clear + Enter, or CSI Z for back-tab).
-        fun sendBytes(bytes: ByteArray): () -> Unit = {
-            writeToSsh(bytes)
-            clearStickyModifiers()
-        }
-        return when (app) {
-            // Claude Code starts a Node process; pane_current_command is most
-            // commonly "node". "claude" covers the wrapper script.
-            "claude", "node" -> listOf(
-                "/" to sendText("/"),
-                "/clear" to sendText("/clear"),
-                "⇧Tab" to sendBytes(byteArrayOf(0x1B, '['.code.toByte(), 'Z'.code.toByte())),
-                "^J" to sendBytes(byteArrayOf(0x0A)),
-            )
-            "bash", "zsh", "sh", "fish" -> listOf(
-                "claude" to sendText("claude"),
-                "cd " to sendText("cd "),
-            )
-            else -> emptyList()
-        }
     }
 
     private fun styleModifierButton(button: Button) {
@@ -611,11 +606,11 @@ class TerminalActivity : AppCompatActivity() {
         return true
     }
 
-    private fun sendKeyCode(keyCode: Int) {
+    private fun sendKeyCode(keyCode: Int, extraMod: Int = 0) {
         val emu = binding.terminalView.mEmulator
         val cursorApp = emu?.isCursorKeysApplicationMode == true
         val keypadApp = emu?.isKeypadApplicationMode == true
-        var keyMod = 0
+        var keyMod = extraMod
         if (stickyCtrl) keyMod = keyMod or KeyHandler.KEYMOD_CTRL
         val code = KeyHandler.getCode(keyCode, keyMod, cursorApp, keypadApp) ?: return
         writeToSsh(code.toByteArray(Charsets.UTF_8))

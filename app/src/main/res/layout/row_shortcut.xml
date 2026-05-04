@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:minHeight="48dp"
+    android:orientation="horizontal">
+
+    <LinearLayout
+        android:id="@+id/row_body"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:background="?attr/selectableItemBackground"
+        android:gravity="center_vertical"
+        android:minHeight="48dp"
+        android:orientation="horizontal"
+        android:paddingHorizontal="4dp">
+
+        <TextView
+            android:id="@+id/text_label"
+            android:layout_width="80dp"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:singleLine="true"
+            android:textAppearance="?attr/textAppearanceBodyLarge"
+            tools:ignore="HardcodedText"
+            tools:text="ESC" />
+
+        <TextView
+            android:id="@+id/text_payload"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:fontFamily="monospace"
+            android:singleLine="true"
+            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            tools:ignore="HardcodedText"
+            tools:text="\\e" />
+    </LinearLayout>
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_up"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:contentDescription="@string/shortcuts_move_up"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:minWidth="0dp"
+        android:padding="0dp"
+        android:text="@string/shortcuts_glyph_up"
+        app:cornerRadius="20dp"
+        style="@style/Widget.Material3.Button.TextButton" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_down"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:contentDescription="@string/shortcuts_move_down"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:minWidth="0dp"
+        android:padding="0dp"
+        android:text="@string/shortcuts_glyph_down"
+        app:cornerRadius="20dp"
+        style="@style/Widget.Material3.Button.TextButton" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_delete"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:contentDescription="@string/shortcuts_delete"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:minWidth="0dp"
+        android:padding="0dp"
+        android:text="@string/shortcuts_glyph_delete"
+        app:cornerRadius="20dp"
+        style="@style/Widget.Material3.Button.TextButton" />
+
+</LinearLayout>

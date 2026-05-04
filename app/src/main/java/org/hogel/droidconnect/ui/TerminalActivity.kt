@@ -70,7 +70,7 @@ class TerminalActivity : AppCompatActivity() {
     private var ctrlButton: Button? = null
 
     // Whether this connection is using tmux. Drives the tmux pane shortcuts
-    // (prefix C-o + create/next/prev) in the FAB speed dial. Authoritative
+    // (prefix C-b + create/next/prev) in the FAB speed dial. Authoritative
     // value lives on [SshConnectionService.useTmux]; this field is populated
     // from there once the service binds, so the UI reflects the active session
     // even when the activity was recreated without intent extras (resumed from
@@ -424,7 +424,7 @@ class TerminalActivity : AppCompatActivity() {
      * tmux window navigation actions surfaced through the FAB speed dial when
      * [useTmux] is true. Sends `prefix + c` new window, `prefix + n` next
      * window, `prefix + p` previous window. Prefix byte comes from the user's
-     * configured letter on the connection screen (default `o` → C-o), and
+     * configured letter on the connection screen (default `b` → C-b), and
      * must match the prefix bound in the user's tmux config.
      */
     private fun tmuxWindowShortcuts(): List<Pair<String, () -> Unit>> {
@@ -442,8 +442,8 @@ class TerminalActivity : AppCompatActivity() {
 
     /**
      * Read the tmux prefix letter saved by [MainActivity] and convert it to
-     * the corresponding control byte (`a` → 0x01, `o` → 0x0F, …). Falls back
-     * to C-o on any unexpected value so the FAB shortcuts stay usable.
+     * the corresponding control byte (`a` → 0x01, `b` → 0x02, …). Falls back
+     * to C-b on any unexpected value so the FAB shortcuts stay usable.
      */
     private fun readTmuxPrefixByte(): Byte {
         val letter = getSharedPreferences(PREFS_CONNECTION, Context.MODE_PRIVATE)
@@ -1108,7 +1108,7 @@ class TerminalActivity : AppCompatActivity() {
         // user's prefix without routing it through ConnectionParams.
         private const val PREFS_CONNECTION = "connection"
         private const val KEY_TMUX_PREFIX = "tmux_prefix"
-        private const val DEFAULT_TMUX_PREFIX_LETTER = "o"
+        private const val DEFAULT_TMUX_PREFIX_LETTER = "b"
         private const val TAG = "TerminalActivity"
         private const val FAB_COLLAPSED_ALPHA = 0.3f
 

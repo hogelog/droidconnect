@@ -313,6 +313,6 @@ class MainActivity : AppCompatActivity() {
         private const val KEY_USERNAME = "username"
         private const val KEY_USE_TMUX = "use_tmux"
         private const val KEY_TMUX_PREFIX = "tmux_prefix"
-        private const val DEFAULT_TMUX_PREFIX = "o"
+        private const val DEFAULT_TMUX_PREFIX = "b"
     }
 }

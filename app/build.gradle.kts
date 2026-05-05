@@ -11,12 +11,33 @@ val gitShortRev: String = providers.exec {
     isIgnoreExitValue = true
 }.standardOutput.asText.map { it.trim().ifEmpty { "unknown" } }.getOrElse("unknown")
 
+fun requireEnv(name: String): String =
+    System.getenv(name)?.takeIf { it.isNotBlank() }
+        ?: error("Required environment variable $name is missing or empty.")
+
 val prNumber: String? = System.getenv("PR_NUMBER")?.takeIf { it.isNotBlank() }
+val releaseVersion: String? = System.getenv("RELEASE_VERSION")?.takeIf { it.isNotBlank() }
 val baseVersionName = "0.1.0"
-val appVersionName: String = if (prNumber != null) {
-    "$baseVersionName-pr-$prNumber-$gitShortRev"
+val appVersionName: String = when {
+    releaseVersion != null -> releaseVersion
+    prNumber != null -> "$baseVersionName-pr-$prNumber-$gitShortRev"
+    else -> baseVersionName
+}
+
+// Tag-driven monotonic versionCode: MAJOR*10000 + MINOR*100 + PATCH (e.g. 1.2.3 -> 10203).
+// Caps at v99.99.99 (= 999999); leaves headroom to migrate to a date-based encoding
+// (e.g. YYYYMMDDpp ~= 2_000_000_000) later without going backwards.
+val appVersionCode: Int = if (releaseVersion != null) {
+    val parts = releaseVersion.split(".")
+    require(parts.size == 3) {
+        "RELEASE_VERSION must be MAJOR.MINOR.PATCH, got '$releaseVersion'"
+    }
+    val (major, minor, patch) = parts.map {
+        it.toIntOrNull() ?: error("RELEASE_VERSION segment '$it' is not an integer")
+    }
+    major * 10000 + minor * 100 + patch
 } else {
-    baseVersionName
+    1
 }
 
 // Lock only the classpaths that ship in the APK. Internal/metadata/test
@@ -36,7 +57,7 @@ android {
         applicationId = "org.hogel.droidconnect"
         minSdk = 34
         targetSdk = 36
-        versionCode = 1
+        versionCode = appVersionCode
         versionName = appVersionName
 
         // Sentry DSN is a public client-side identifier (kept in CI vars, not secrets).
@@ -57,12 +78,26 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        // Release signingConfig is wired up only when CI provides the keystore env vars,
+        // so local `assembleDebug` keeps working without release credentials.
+        val releaseKeystorePath = System.getenv("RELEASE_KEYSTORE_PATH")?.takeIf { it.isNotBlank() }
+        if (releaseKeystorePath != null) {
+            create("release") {
+                storeFile = file(releaseKeystorePath)
+                storePassword = requireEnv("RELEASE_KEYSTORE_PASSWORD")
+                keyAlias = requireEnv("RELEASE_KEY_ALIAS")
+                keyPassword = requireEnv("RELEASE_KEY_PASSWORD")
+            }
+        } else if (releaseVersion != null) {
+            error("RELEASE_VERSION is set but RELEASE_KEYSTORE_PATH is missing; release builds must be signed.")
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfigs.findByName("release")?.let { signingConfig = it }
         }
     }
 

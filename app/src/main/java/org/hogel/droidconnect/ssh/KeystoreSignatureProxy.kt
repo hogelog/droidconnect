@@ -1,6 +1,6 @@
 package org.hogel.droidconnect.ssh
 
-import androidx.biometric.BiometricPrompt
+import android.security.keystore.UserNotAuthenticatedException
 import com.trilead.ssh2.auth.SignatureProxy
 import com.trilead.ssh2.crypto.SimpleDERReader
 import com.trilead.ssh2.packets.TypesWriter
@@ -16,6 +16,12 @@ import java.security.interfaces.ECPublicKey
  * sshlib call back into [sign] instead of touching the private key directly.
  * That lets the real key stay in the TEE — we only hand sshlib the public key
  * and the signature bytes it needs to assemble the auth packet.
+ *
+ * The keystore entry uses a time-based validity window
+ * (`setUserAuthenticationParameters(VALIDITY_SECONDS, BIOMETRIC_STRONG)`), so
+ * inside that window [sign] succeeds with no UI; outside it the keystore
+ * throws [UserNotAuthenticatedException] and we drive a [BiometricAuthenticator]
+ * prompt before retrying.
  */
 class KeystoreSignatureProxy(
     publicKey: ECPublicKey,
@@ -24,22 +30,28 @@ class KeystoreSignatureProxy(
 ) : SignatureProxy(publicKey) {
 
     override fun sign(message: ByteArray, hashAlgorithm: String): ByteArray {
+        val derSignature = try {
+            signOnce(message)
+        } catch (_: UserNotAuthenticatedException) {
+            // Validity window expired (or this is the first sign after key
+            // generation). Prompt for biometrics and retry exactly once.
+            authenticator.authenticate()
+            signOnce(message)
+        }
+        return encodeSshEcdsaSignature(derSignature)
+    }
+
+    private fun signOnce(message: ByteArray): ByteArray {
         val privateKey = keyManager.loadPrivateKey()
             ?: throw BiometricAuthenticationException("Keystore private key is missing")
-
         // SHA256withECDSA matches the DIGEST_SHA256 authorization on the
         // keystore entry; sshlib requests SHA-256 for P-256 keys via
         // ECDSASHA2Verify.getDigestAlgorithmForParams.
-        val signature = Signature.getInstance("SHA256withECDSA").apply { initSign(privateKey) }
-
-        val authed = authenticator.authenticate(BiometricPrompt.CryptoObject(signature))
-        val authedSig = authed.signature
-            ?: throw BiometricAuthenticationException("Biometric prompt returned no signature")
-
-        authedSig.update(message)
-        val derSignature = authedSig.sign()
-
-        return encodeSshEcdsaSignature(derSignature)
+        val signature = Signature.getInstance("SHA256withECDSA").apply {
+            initSign(privateKey)
+            update(message)
+        }
+        return signature.sign()
     }
 
     /**

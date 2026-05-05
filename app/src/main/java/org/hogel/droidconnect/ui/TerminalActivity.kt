@@ -78,19 +78,16 @@ class TerminalActivity : AppCompatActivity() {
     private val biometricExecutor = Executors.newSingleThreadExecutor()
 
     private val biometricAuthenticator = object : BiometricAuthenticator {
-        override fun authenticate(
-            cryptoObject: BiometricPrompt.CryptoObject,
-        ): BiometricPrompt.CryptoObject {
+        override fun authenticate() {
             // sshlib's auth handshake calls us on the ssh-read thread; block it
             // on this queue until the biometric callback fires on the UI side.
-            val resultQueue = SynchronousQueue<Result<BiometricPrompt.CryptoObject>>()
+            // No CryptoObject is involved — the keystore key is gated by a
+            // time-based validity window, so a successful prompt is enough to
+            // unlock signing for the configured period.
+            val resultQueue = SynchronousQueue<Result<Unit>>()
             val callback = object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                    val crypto = result.cryptoObject
-                        ?: return deliver(Result.failure(
-                            BiometricAuthenticationException("Biometric result had no CryptoObject"),
-                        ))
-                    deliver(Result.success(crypto))
+                    deliver(Result.success(Unit))
                 }
 
                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
@@ -104,7 +101,7 @@ class TerminalActivity : AppCompatActivity() {
                     // dismisses on success or error (e.g., too many attempts).
                 }
 
-                private fun deliver(r: Result<BiometricPrompt.CryptoObject>) {
+                private fun deliver(r: Result<Unit>) {
                     // Offer may be called before the consumer thread parks; use
                     // put so we block until the SSH thread picks it up.
                     resultQueue.put(r)
@@ -125,10 +122,10 @@ class TerminalActivity : AppCompatActivity() {
                         androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG,
                     )
                     .build()
-                prompt.authenticate(info, cryptoObject)
+                prompt.authenticate(info)
             }
 
-            return resultQueue.take().getOrThrow()
+            resultQueue.take().getOrThrow()
         }
     }
 

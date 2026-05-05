@@ -1,9 +1,8 @@
 package org.hogel.droidconnect.ssh
 
-import androidx.biometric.BiometricPrompt
-
 /**
- * Shows a biometric prompt to authorize a keystore-backed [BiometricPrompt.CryptoObject].
+ * Shows a biometric prompt that unlocks the keystore for the configured
+ * validity window (see [SshKeyManager.VALIDITY_SECONDS]).
  *
  * The implementation lives in the UI layer (it needs a FragmentActivity) while
  * the consumer is the SSH signing path on a background thread. Implementations
@@ -12,13 +11,14 @@ import androidx.biometric.BiometricPrompt
  */
 interface BiometricAuthenticator {
     /**
-     * Shows the biometric prompt for [cryptoObject] and returns the same object
-     * once the user has authenticated, ready to be used for a single sign call.
+     * Shows the biometric prompt and blocks until the user authenticates. After
+     * a successful return the keystore key is usable without re-prompting until
+     * the validity window expires.
      *
      * @throws BiometricAuthenticationException if the user cancels, fails, or the
      *         device cannot satisfy the prompt.
      */
-    fun authenticate(cryptoObject: BiometricPrompt.CryptoObject): BiometricPrompt.CryptoObject
+    fun authenticate()
 }
 
 class BiometricAuthenticationException(message: String, cause: Throwable? = null) :

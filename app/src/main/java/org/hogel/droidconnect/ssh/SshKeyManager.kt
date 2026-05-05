@@ -13,10 +13,11 @@ import java.util.Base64
 /**
  * ECDSA P-256 SSH key pair stored in the Android Keystore.
  *
- * The private key never leaves the TEE: each signature requires a fresh
- * biometric unlock (per-use, no time-based validity window). The public key
- * is derived from the keystore entry on demand and formatted as an OpenSSH
- * authorized_keys line.
+ * The private key never leaves the TEE. A successful biometric unlock keeps
+ * the key usable for [VALIDITY_SECONDS] before another prompt is required —
+ * mirroring the ssh-add experience of "unlock once, use through the working
+ * day." The public key is derived from the keystore entry on demand and
+ * formatted as an OpenSSH authorized_keys line.
  */
 class SshKeyManager {
 
@@ -33,9 +34,14 @@ class SshKeyManager {
                 .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
                 .setDigests(KeyProperties.DIGEST_SHA256)
                 .setUserAuthenticationRequired(true)
-                // timeout=0 + BIOMETRIC_STRONG → each sign() needs a fresh biometric
-                // unlock via BiometricPrompt.CryptoObject, not a time-based window.
-                .setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG)
+                // One biometric unlock authorizes signing for VALIDITY_SECONDS;
+                // after that, sign() throws UserNotAuthenticatedException and
+                // KeystoreSignatureProxy re-prompts. Avoids a fresh prompt for
+                // every SSH handshake / tmux reconnect within a working session.
+                .setUserAuthenticationParameters(
+                    VALIDITY_SECONDS,
+                    KeyProperties.AUTH_BIOMETRIC_STRONG,
+                )
                 .setInvalidatedByBiometricEnrollment(true)
                 .build()
         )
@@ -66,6 +72,14 @@ class SshKeyManager {
 
     companion object {
         const val KEY_ALIAS = "droidconnect-ssh-key"
+
+        /**
+         * How long a single biometric unlock keeps the keystore key usable, in
+         * seconds. 12h is sized to cover one waking day so a typical user
+         * authenticates at most once per session.
+         */
+        const val VALIDITY_SECONDS = 12 * 60 * 60
+
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
         private const val KEY_COMMENT = "droidconnect"
     }

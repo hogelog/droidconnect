@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Diagonal ribbon across the bottom-right corner of the safe zone. -->
+    <path
+        android:pathData="M87,32 L87,50 L50,87 L32,87 Z"
+        android:fillColor="#D32F2F" />
+
+</vector>

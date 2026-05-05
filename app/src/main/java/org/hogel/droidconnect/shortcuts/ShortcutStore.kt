@@ -89,7 +89,7 @@ class ShortcutStore(context: Context) {
         private const val KEY_CONTEXT = "context_groups"
 
         fun defaultAux(): List<Shortcut> = listOf(
-            Shortcut("ESC", "\\e"),
+            Shortcut("/", "/"),
             Shortcut("TAB", "{TAB}"),
             Shortcut("^L", "^L"),
             Shortcut("^R", "^R"),
@@ -103,7 +103,7 @@ class ShortcutStore(context: Context) {
             ContextGroup(
                 contexts = listOf("claude"),
                 shortcuts = listOf(
-                    Shortcut("/", "/"),
+                    Shortcut("ESC", "\\e"),
                     Shortcut("/clear", "/clear"),
                     Shortcut("⇧Tab", "{S-TAB}"),
                     Shortcut("^J", "^J"),

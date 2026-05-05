@@ -22,7 +22,7 @@ jobs:
           hash=$(git ls-tree HEAD -- $paths | sha256sum | awk '{print $1}')
           echo "hash=$hash" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         id: submodule-cache
         with:
           path: vendor
@@ -62,7 +62,7 @@ jobs:
              "artifacts/droidconnect-${GITHUB_REF_NAME}-debug.apk"
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: artifacts/*.apk
           generate_release_notes: true

@@ -10,7 +10,7 @@ jobs:
         env:
           DEPLOYGATE_API_KEY: ${{ secrets.DEPLOYGATE_API_KEY }}
           DEPLOYGATE_USER_NAME: ${{ secrets.DEPLOYGATE_USER_NAME }}
-          PACKAGE: org.hogel.droidconnect
+          PACKAGE: org.hogel.droidconnect.debug
           KEEP: 5
         run: |
           set -euo pipefail

@@ -5,40 +5,41 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Diagonal grey ribbon at the top-left corner of the safe zone. -->
+    <!-- Diagonal grey ribbon near the top-left of the icon, shifted inward
+         so circular launcher masks don't clip the outer edge. -->
     <path
-        android:pathData="M21,32 L32,21 L50,21 L21,50 Z"
+        android:pathData="M21,42 L42,21 L60,21 L21,60 Z"
         android:fillColor="#424242" />
 
     <!-- "DEBUG" text rotated -45° to align with the ribbon. -->
     <group
-        android:pivotX="31"
-        android:pivotY="31"
+        android:pivotX="36"
+        android:pivotY="36"
         android:rotation="-45">
 
         <!-- D -->
         <path
-            android:pathData="M20,28.5 L20,33.5 L22.5,33.5 L24,32 L24,30 L22.5,28.5 Z"
+            android:pathData="M25,33.5 L25,38.5 L27.5,38.5 L29,37 L29,35 L27.5,33.5 Z"
             android:strokeColor="#FFFFFF"
             android:strokeWidth="0.9" />
         <!-- E -->
         <path
-            android:pathData="M28.5,28.5 L24.5,28.5 L24.5,33.5 L28.5,33.5 M24.5,31 L27.5,31"
+            android:pathData="M33.5,33.5 L29.5,33.5 L29.5,38.5 L33.5,38.5 M29.5,36 L32.5,36"
             android:strokeColor="#FFFFFF"
             android:strokeWidth="0.9" />
         <!-- B -->
         <path
-            android:pathData="M29,28.5 L29,33.5 M29,28.5 L31.5,28.5 L32.7,29.75 L31.5,31 L29,31 M31.5,31 L32.7,32.25 L31.5,33.5 L29,33.5"
+            android:pathData="M34,33.5 L34,38.5 M34,33.5 L36.5,33.5 L37.7,34.75 L36.5,36 L34,36 M36.5,36 L37.7,37.25 L36.5,38.5 L34,38.5"
             android:strokeColor="#FFFFFF"
             android:strokeWidth="0.9" />
         <!-- U -->
         <path
-            android:pathData="M33.5,28.5 L33.5,32.5 L34.5,33.5 L36.5,33.5 L37.5,32.5 L37.5,28.5"
+            android:pathData="M38.5,33.5 L38.5,37.5 L39.5,38.5 L41.5,38.5 L42.5,37.5 L42.5,33.5"
             android:strokeColor="#FFFFFF"
             android:strokeWidth="0.9" />
         <!-- G -->
         <path
-            android:pathData="M42,28.5 L39,28.5 L38,29.5 L38,32.5 L39,33.5 L41,33.5 L42,33 L42,31 L40.5,31"
+            android:pathData="M47,33.5 L44,33.5 L43,34.5 L43,37.5 L44,38.5 L46,38.5 L47,38 L47,36 L45.5,36"
             android:strokeColor="#FFFFFF"
             android:strokeWidth="0.9" />
 

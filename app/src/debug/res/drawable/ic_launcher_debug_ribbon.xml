@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Diagonal grey ribbon near the top-left of the icon, shifted inward
+         so circular launcher masks don't clip the outer edge. -->
+    <path
+        android:pathData="M21,42 L42,21 L60,21 L21,60 Z"
+        android:fillColor="#424242" />
+
+    <!-- "DEBUG" text rotated -45° to align with the ribbon. -->
+    <group
+        android:pivotX="36"
+        android:pivotY="36"
+        android:rotation="-45">
+
+        <!-- D -->
+        <path
+            android:pathData="M25,33.5 L25,38.5 L27.5,38.5 L29,37 L29,35 L27.5,33.5 Z"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="0.9" />
+        <!-- E -->
+        <path
+            android:pathData="M33.5,33.5 L29.5,33.5 L29.5,38.5 L33.5,38.5 M29.5,36 L32.5,36"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="0.9" />
+        <!-- B -->
+        <path
+            android:pathData="M34,33.5 L34,38.5 M34,33.5 L36.5,33.5 L37.7,34.75 L36.5,36 L34,36 M36.5,36 L37.7,37.25 L36.5,38.5 L34,38.5"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="0.9" />
+        <!-- U -->
+        <path
+            android:pathData="M38.5,33.5 L38.5,37.5 L39.5,38.5 L41.5,38.5 L42.5,37.5 L42.5,33.5"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="0.9" />
+        <!-- G -->
+        <path
+            android:pathData="M47,33.5 L44,33.5 L43,34.5 L43,37.5 L44,38.5 L46,38.5 L47,38 L47,36 L45.5,36"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="0.9" />
+
+    </group>
+</vector>

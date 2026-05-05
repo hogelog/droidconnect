@@ -101,7 +101,7 @@ class ShortcutStore(context: Context) {
 
         fun defaultContextGroups(): List<ContextGroup> = listOf(
             ContextGroup(
-                contexts = listOf("claude", "node"),
+                contexts = listOf("claude"),
                 shortcuts = listOf(
                     Shortcut("/", "/"),
                     Shortcut("/clear", "/clear"),

@@ -18,8 +18,10 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.edit
 import org.hogel.droidconnect.databinding.ActivityMainBinding
+import org.hogel.droidconnect.shortcuts.ShortcutStore
 import org.hogel.droidconnect.ssh.SshConnectionService
 import org.hogel.droidconnect.ssh.SshKeyManager
+import org.hogel.droidconnect.ui.ShortcutsSettingsActivity
 import org.hogel.droidconnect.ui.TerminalActivity
 
 class MainActivity : AppCompatActivity() {
@@ -74,6 +76,7 @@ class MainActivity : AppCompatActivity() {
         setupConnectionTargetToggle()
         setupSshKeyToggle()
         setupTmuxPrefixRow()
+        setupShortcutsRow()
 
         updatePublicKeyDisplay()
 
@@ -154,6 +157,11 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         saveConnectionInput()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateShortcutsSummary()
     }
 
     private fun updateConnectionStatus() {
@@ -247,6 +255,21 @@ class MainActivity : AppCompatActivity() {
                 else R.string.ssh_key_summary_not_generated
             )
         }
+    }
+
+    private fun setupShortcutsRow() {
+        binding.headerShortcuts.setOnClickListener {
+            startActivity(Intent(this, ShortcutsSettingsActivity::class.java))
+        }
+        updateShortcutsSummary()
+    }
+
+    private fun updateShortcutsSummary() {
+        val store = ShortcutStore(this)
+        val auxCount = store.loadAux().size
+        val groupCount = store.loadContextGroups().size
+        binding.textShortcutsSummary.text =
+            getString(R.string.shortcuts_summary_format, auxCount, groupCount)
     }
 
     private fun setupTmuxPrefixRow() {

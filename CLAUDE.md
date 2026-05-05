@@ -16,8 +16,9 @@ Android SSH client designed for Claude Code TUI interaction.
 ### Key Packages
 
 - `org.hogel.droidconnect` - Main activity (connection UI)
-- `org.hogel.droidconnect.ui` - Terminal UI (TerminalActivity)
+- `org.hogel.droidconnect.ui` - Terminal UI (`TerminalActivity`, `ShortcutsSettingsActivity`)
 - `org.hogel.droidconnect.ssh` - SSH session management and key generation
+- `org.hogel.droidconnect.shortcuts` - Configurable shortcut bars (`ShortcutStore`, payload parser)
 
 ## Architecture
 

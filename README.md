@@ -8,6 +8,7 @@ Android SSH client designed for interacting with Claude Code's TUI.
 - SSH public key authentication via [sshlib](https://github.com/connectbot/sshlib)
 - Terminal emulation via [Termux terminal-emulator/terminal-view](https://github.com/termux/termux-app)
 - xterm-256color compatible rendering
+- Configurable shortcut bars (always-on and per-foreground-command)
 
 ## Build
 

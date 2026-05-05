@@ -11,12 +11,38 @@ val gitShortRev: String = providers.exec {
     isIgnoreExitValue = true
 }.standardOutput.asText.map { it.trim().ifEmpty { "unknown" } }.getOrElse("unknown")
 
+val releaseVersion: String? = System.getenv("RELEASE_VERSION")?.takeIf { it.isNotBlank() }
 val prNumber: String? = System.getenv("PR_NUMBER")?.takeIf { it.isNotBlank() }
 val baseVersionName = "0.1.0"
-val appVersionName: String = if (prNumber != null) {
-    "$baseVersionName-pr-$prNumber-$gitShortRev"
+val appVersionName: String = when {
+    releaseVersion != null -> releaseVersion
+    prNumber != null -> "$baseVersionName-pr-$prNumber-$gitShortRev"
+    else -> baseVersionName
+}
+
+// Release builds derive a monotonic versionCode from the tag-driven semver
+// version (MAJOR*10000 + MINOR*100 + PATCH). Non-release builds keep 1.
+val appVersionCode: Int = if (releaseVersion != null) {
+    val parts = releaseVersion.split(".")
+    require(parts.size == 3) {
+        "RELEASE_VERSION must be MAJOR.MINOR.PATCH (got: $releaseVersion)"
+    }
+    val nums = parts.map {
+        it.toIntOrNull()
+            ?: error("RELEASE_VERSION segment '$it' is not an integer (got: $releaseVersion)")
+    }
+    nums[0] * 10000 + nums[1] * 100 + nums[2]
 } else {
-    baseVersionName
+    1
+}
+
+val releaseKeystorePath: String? = System.getenv("RELEASE_KEYSTORE_PATH")?.takeIf { it.isNotBlank() }
+if (releaseVersion != null && releaseKeystorePath == null) {
+    error(
+        "RELEASE_VERSION is set ($releaseVersion) but RELEASE_KEYSTORE_PATH is not. " +
+            "Release builds require RELEASE_KEYSTORE_PATH and the RELEASE_KEYSTORE_PASSWORD/" +
+            "RELEASE_KEY_ALIAS/RELEASE_KEY_PASSWORD env vars.",
+    )
 }
 
 // Lock only the classpaths that ship in the APK. Internal/metadata/test
@@ -36,7 +62,7 @@ android {
         applicationId = "org.hogel.droidconnect"
         minSdk = 34
         targetSdk = 36
-        versionCode = 1
+        versionCode = appVersionCode
         versionName = appVersionName
 
         // Sentry DSN is a public client-side identifier (kept in CI vars, not secrets).
@@ -57,12 +83,25 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+
+        if (releaseKeystorePath != null) {
+            create("release") {
+                storeFile = file(releaseKeystorePath)
+                storePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
+                    ?: error("RELEASE_KEYSTORE_PASSWORD must be set when RELEASE_KEYSTORE_PATH is provided")
+                keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+                    ?: error("RELEASE_KEY_ALIAS must be set when RELEASE_KEYSTORE_PATH is provided")
+                keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+                    ?: error("RELEASE_KEY_PASSWORD must be set when RELEASE_KEYSTORE_PATH is provided")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfigs.findByName("release")?.let { signingConfig = it }
         }
     }
 

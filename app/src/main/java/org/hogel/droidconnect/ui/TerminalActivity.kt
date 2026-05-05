@@ -30,6 +30,7 @@ import android.widget.Space
 import android.widget.Toast
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
@@ -47,6 +48,7 @@ import org.hogel.droidconnect.shortcuts.ShortcutStore
 import org.hogel.droidconnect.shortcuts.parseShortcutActions
 import org.hogel.droidconnect.ssh.BiometricAuthenticationException
 import org.hogel.droidconnect.ssh.BiometricAuthenticator
+import org.hogel.droidconnect.ssh.HostKeyPrompt
 import org.hogel.droidconnect.ssh.SshConnectionService
 import org.hogel.droidconnect.ssh.SshKeyManager
 import com.termux.terminal.KeyHandler
@@ -126,6 +128,42 @@ class TerminalActivity : AppCompatActivity() {
             }
 
             resultQueue.take().getOrThrow()
+        }
+    }
+
+    private val hostKeyPrompt = object : HostKeyPrompt {
+        override fun confirmNewHostKey(
+            host: String,
+            port: Int,
+            algorithm: String,
+            fingerprint: String,
+        ): Boolean {
+            // Block the ssh-read thread on this queue while the dialog runs on
+            // the UI thread. Mirrors the biometric pattern above. setCancelable
+            // is false so a stray back-press cannot silently accept the key.
+            val resultQueue = SynchronousQueue<Boolean>()
+            runOnUiThread {
+                AlertDialog.Builder(this@TerminalActivity)
+                    .setTitle(R.string.host_key_verify_title)
+                    .setMessage(
+                        getString(
+                            R.string.host_key_verify_message,
+                            host,
+                            port,
+                            algorithm,
+                            fingerprint,
+                        ),
+                    )
+                    .setCancelable(false)
+                    .setPositiveButton(R.string.host_key_accept) { _, _ ->
+                        resultQueue.put(true)
+                    }
+                    .setNegativeButton(android.R.string.cancel) { _, _ ->
+                        resultQueue.put(false)
+                    }
+                    .show()
+            }
+            return resultQueue.take()
         }
     }
 
@@ -221,7 +259,7 @@ class TerminalActivity : AppCompatActivity() {
                     val rows = emulator?.mRows ?: DEFAULT_ROWS
                     lastSentColumns = cols
                     lastSentRows = rows
-                    svc.connect(params, biometricAuthenticator, cols, rows)
+                    svc.connect(params, biometricAuthenticator, hostKeyPrompt, cols, rows)
                 }
                 svc.state == SshConnectionService.State.IDLE -> {
                     // Resumed from notification but the service is no longer connected.

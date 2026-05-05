@@ -122,14 +122,15 @@ class SshConnectionService : Service() {
     /**
      * Start a new SSH connection. No-op if a connection is already running.
      *
-     * [authenticator] is invoked on a background thread during the SSH
-     * pubkey handshake; it must show the biometric prompt on the UI thread
-     * and block until the user completes or cancels. Passing the caller's
-     * authenticator here avoids coupling the foreground service to any UI.
+     * [authenticator] and [hostKeyPrompt] are invoked on a background thread
+     * during the SSH handshake; both must post to the UI thread to show
+     * their dialog and block until the user completes or cancels. Passing
+     * them in here avoids coupling the foreground service to any UI.
      */
     fun connect(
         params: ConnectionParams,
         authenticator: BiometricAuthenticator,
+        hostKeyPrompt: HostKeyPrompt,
         columns: Int,
         rows: Int,
     ) {
@@ -142,7 +143,7 @@ class SshConnectionService : Service() {
             lastTitle = null
             updateNotification(getString(R.string.notification_text_connecting))
             readThread = thread(name = "ssh-read") {
-                runReadLoop(params, authenticator, columns, rows)
+                runReadLoop(params, authenticator, hostKeyPrompt, columns, rows)
             }
         }
     }
@@ -150,6 +151,7 @@ class SshConnectionService : Service() {
     private fun runReadLoop(
         params: ConnectionParams,
         authenticator: BiometricAuthenticator,
+        hostKeyPrompt: HostKeyPrompt,
         columns: Int,
         rows: Int,
     ) {
@@ -159,7 +161,14 @@ class SshConnectionService : Service() {
             val publicKey = keyManager.loadPublicKey()
                 ?: throw SshAuthenticationException("No SSH key found")
             val signatureProxy = KeystoreSignatureProxy(publicKey, keyManager, authenticator)
-            val ssh = SshSession(params.host, params.port, params.username, signatureProxy)
+            val hostKeyVerifier = TofuHostKeyVerifier(HostKeyStore(this), hostKeyPrompt)
+            val ssh = SshSession(
+                params.host,
+                params.port,
+                params.username,
+                signatureProxy,
+                hostKeyVerifier,
+            )
             ssh.connect()
             ssh.openShell(
                 columns.coerceAtLeast(1),

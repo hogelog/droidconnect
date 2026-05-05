@@ -14,6 +14,7 @@ class SshSession(
     private val port: Int,
     private val username: String,
     private val signatureProxy: SignatureProxy,
+    private val hostKeyVerifier: ServerHostKeyVerifier,
 ) {
     private var connection: Connection? = null
     private var session: Session? = null
@@ -27,9 +28,7 @@ class SshSession(
     /** Blocking; call from a background thread. */
     fun connect() {
         val conn = Connection(host, port)
-        // Accept all host keys for Phase 1 (personal use only)
-        val acceptAllVerifier = ServerHostKeyVerifier { _, _, _, _ -> true }
-        conn.connect(acceptAllVerifier, 10_000, 10_000)
+        conn.connect(hostKeyVerifier, 10_000, 10_000)
 
         val authenticated = conn.authenticateWithPublicKey(username, signatureProxy)
         if (!authenticated) {

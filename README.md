@@ -6,8 +6,8 @@ Android SSH client designed for interacting with Claude Code's TUI.
 
 - ECDSA P-256 key pair generated in the Android Keystore (hardware-backed when available)
 - Biometric-gated SSH public key authentication via [sshlib](https://github.com/connectbot/sshlib):
-  the private key never leaves the TEE; one biometric unlock authorizes signing for 12 hours
-  (ssh-add-style validity window)
+  the private key never leaves the TEE; one biometric authentication authorizes signing for
+  30 minutes (the lock-screen unlock counts, so active use stays seamless)
 - Terminal emulation via [Termux terminal-emulator/terminal-view](https://github.com/termux/termux-app)
 - xterm-256color compatible rendering
 - Configurable shortcut bars (always-on and per-foreground-command)

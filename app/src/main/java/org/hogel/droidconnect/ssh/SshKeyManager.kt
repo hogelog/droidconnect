@@ -13,11 +13,11 @@ import java.util.Base64
 /**
  * ECDSA P-256 SSH key pair stored in the Android Keystore.
  *
- * The private key never leaves the TEE. A successful biometric unlock keeps
- * the key usable for [VALIDITY_SECONDS] before another prompt is required —
- * mirroring the ssh-add experience of "unlock once, use through the working
- * day." The public key is derived from the keystore entry on demand and
- * formatted as an OpenSSH authorized_keys line.
+ * The private key never leaves the TEE. A successful biometric authentication
+ * keeps the key usable for [VALIDITY_SECONDS]; any system-wide biometric event
+ * (including the lock-screen unlock) refreshes that window, so signing stays
+ * seamless during active use. The public key is derived from the keystore
+ * entry on demand and formatted as an OpenSSH authorized_keys line.
  */
 class SshKeyManager {
 
@@ -34,10 +34,11 @@ class SshKeyManager {
                 .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
                 .setDigests(KeyProperties.DIGEST_SHA256)
                 .setUserAuthenticationRequired(true)
-                // One biometric unlock authorizes signing for VALIDITY_SECONDS;
-                // after that, sign() throws UserNotAuthenticatedException and
-                // KeystoreSignatureProxy re-prompts. Avoids a fresh prompt for
-                // every SSH handshake / tmux reconnect within a working session.
+                // One biometric authentication authorizes signing for
+                // VALIDITY_SECONDS; after that, sign() throws
+                // UserNotAuthenticatedException and KeystoreSignatureProxy
+                // re-prompts. Keeps active use seamless without prompting on
+                // every SSH handshake or tmux reconnect.
                 .setUserAuthenticationParameters(
                     VALIDITY_SECONDS,
                     KeyProperties.AUTH_BIOMETRIC_STRONG,
@@ -74,11 +75,14 @@ class SshKeyManager {
         const val KEY_ALIAS = "droidconnect-ssh-key"
 
         /**
-         * How long a single biometric unlock keeps the keystore key usable, in
-         * seconds. 12h is sized to cover one waking day so a typical user
-         * authenticates at most once per session.
+         * How long a single biometric authentication keeps the keystore key
+         * usable, in seconds. The Android Keystore counts any system-wide
+         * biometric event (including the lock-screen unlock) as a fresh
+         * authentication, so 30 minutes is enough to keep the experience
+         * seamless during active use without extending the unlocked window
+         * unnecessarily after the device has been idle.
          */
-        const val VALIDITY_SECONDS = 12 * 60 * 60
+        const val VALIDITY_SECONDS = 30 * 60
 
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
         private const val KEY_COMMENT = "droidconnect"

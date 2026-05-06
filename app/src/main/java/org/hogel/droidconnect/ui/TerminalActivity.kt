@@ -57,6 +57,7 @@ import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
 import com.termux.view.TerminalViewClient
 import kotlin.math.abs
+import kotlin.math.max
 
 /**
  * Terminal UI activity.
@@ -207,6 +208,15 @@ class TerminalActivity : AppCompatActivity() {
     // (not a scroll / long-press). Consulted at ACTION_UP to decide whether to
     // swallow the up-event and run our own keyboard toggle.
     private var tappedThisGesture = false
+    // Locked once a gesture's motion exceeds the slop threshold; after that it
+    // stays on the same axis until the gesture ends. This prevents a drag that
+    // started horizontal from flipping to vertical scroll partway through (and
+    // vice versa), which otherwise produces a confusing mid-gesture handoff.
+    private var gestureAxis = GestureAxis.UNDETERMINED
+    // Sign of the pending tmux window switch: -1 = next, +1 = previous, 0 =
+    // below the commit threshold so releasing now won't switch. Drives the
+    // mid-gesture overlay and the ACTION_UP commit decision.
+    private var pendingSwipeDirection = 0
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -565,18 +575,22 @@ class TerminalActivity : AppCompatActivity() {
     }
 
     /**
-     * Read the tmux prefix letter saved by [MainActivity] and convert it to
-     * the corresponding control byte (`a` → 0x01, `b` → 0x02, …). Falls back
-     * to C-b on any unexpected value so the FAB shortcuts stay usable.
+     * Read the tmux prefix letter saved by [MainActivity]. Falls back to `b`
+     * on any unexpected value so the FAB shortcuts and swipe gesture stay
+     * usable.
      */
-    private fun readTmuxPrefixByte(): Byte {
-        val letter = getSharedPreferences(PREFS_CONNECTION, Context.MODE_PRIVATE)
+    private fun readTmuxPrefixLetter(): Char {
+        return getSharedPreferences(PREFS_CONNECTION, Context.MODE_PRIVATE)
             .getString(KEY_TMUX_PREFIX, DEFAULT_TMUX_PREFIX_LETTER)
             ?.trim()?.lowercase()
             ?.firstOrNull()
             ?.takeIf { it in 'a'..'z' }
             ?: DEFAULT_TMUX_PREFIX_LETTER[0]
-        return (letter.code - 'a'.code + 1).toByte()
+    }
+
+    /** Convert the configured prefix letter to its control byte (`a` → 0x01). */
+    private fun readTmuxPrefixByte(): Byte {
+        return (readTmuxPrefixLetter().code - 'a'.code + 1).toByte()
     }
 
     private fun styleModifierButton(button: Button) {
@@ -851,6 +865,8 @@ class TerminalActivity : AppCompatActivity() {
                 scrollRemainderPx = 0f
                 handlingScrollGesture = false
                 tappedThisGesture = false
+                gestureAxis = GestureAxis.UNDETERMINED
+                pendingSwipeDirection = 0
                 return false
             }
 
@@ -867,6 +883,43 @@ class TerminalActivity : AppCompatActivity() {
             ): Boolean {
                 // Ignore pinch gestures — font-size zoom is driven by onScale.
                 if (e2.pointerCount > 1) return false
+                if (e1 == null) return false
+
+                // Lock the primary axis once the drag clears the slop. Using
+                // the cumulative delta (e2 - e1) instead of this frame's
+                // distance lets the lock weather a brief jitter at gesture
+                // start without flipping axis.
+                val totalDx = e2.x - e1.x
+                val totalDy = e2.y - e1.y
+                val absDx = abs(totalDx)
+                val absDy = abs(totalDy)
+                if (gestureAxis == GestureAxis.UNDETERMINED) {
+                    if (max(absDx, absDy) < dpToPx(GESTURE_AXIS_LOCK_SLOP_DP)) return false
+                    gestureAxis = if (useTmux && absDx > absDy * SWIPE_HORIZONTAL_RATIO) {
+                        GestureAxis.HORIZONTAL
+                    } else {
+                        GestureAxis.VERTICAL
+                    }
+                }
+
+                if (gestureAxis == GestureAxis.HORIZONTAL) {
+                    // We own the gesture for the rest of the drag — even if
+                    // the user retreats below the commit threshold — so
+                    // TerminalView never sees the motion. Otherwise its native
+                    // text-selection long-press could fire from a slow swipe.
+                    handlingScrollGesture = true
+                    val direction = when {
+                        absDx >= dpToPx(SWIPE_MIN_DISTANCE_DP) -> if (totalDx > 0) +1 else -1
+                        else -> 0
+                    }
+                    if (direction != pendingSwipeDirection) {
+                        pendingSwipeDirection = direction
+                        if (direction == 0) hideSwipeFeedback() else showSwipeFeedback(direction)
+                    }
+                    return true
+                }
+
+                // VERTICAL axis: route the drag to the wheel/dpad scroll path.
                 val emu = binding.terminalView.mEmulator ?: return false
                 val rows = emu.mRows
                 if (rows <= 0) return false
@@ -939,20 +992,53 @@ class TerminalActivity : AppCompatActivity() {
                         binding.terminalView.onTouchEvent(cancel)
                         cancel.recycle()
                     }
+                    if (pendingSwipeDirection != 0) commitPendingSwipe()
                     if (tapInMouseTracking) {
                         binding.imeProxy.requestFocus()
                         toggleSoftKeyboard()
                     }
+                    hideSwipeFeedback()
                     handlingScrollGesture = false
                     tappedThisGesture = false
+                    gestureAxis = GestureAxis.UNDETERMINED
+                    pendingSwipeDirection = 0
                 }
                 MotionEvent.ACTION_CANCEL -> {
+                    hideSwipeFeedback()
                     handlingScrollGesture = false
                     tappedThisGesture = false
+                    gestureAxis = GestureAxis.UNDETERMINED
+                    pendingSwipeDirection = 0
                 }
             }
             consume
         }
+    }
+
+    /**
+     * Send the tmux prefix + window-navigation byte for the currently pending
+     * swipe direction. Caller is responsible for clearing [pendingSwipeDirection]
+     * and the overlay afterwards.
+     */
+    private fun commitPendingSwipe() {
+        val prefix = readTmuxPrefixByte()
+        val nav: Byte = if (pendingSwipeDirection > 0) 'p'.code.toByte() else 'n'.code.toByte()
+        writeToSsh(byteArrayOf(prefix, nav))
+        clearStickyModifiers()
+    }
+
+    private fun showSwipeFeedback(direction: Int) {
+        val prefixLetter = readTmuxPrefixLetter().uppercaseChar()
+        binding.swipeFeedback.text = if (direction > 0) {
+            getString(R.string.swipe_feedback_previous_window, prefixLetter)
+        } else {
+            getString(R.string.swipe_feedback_next_window, prefixLetter)
+        }
+        binding.swipeFeedback.visibility = View.VISIBLE
+    }
+
+    private fun hideSwipeFeedback() {
+        binding.swipeFeedback.visibility = View.GONE
     }
 
     private fun showSoftKeyboard() {
@@ -1186,6 +1272,9 @@ class TerminalActivity : AppCompatActivity() {
         }
     }
 
+    /** Locked direction of an in-flight terminal drag. See [gestureAxis]. */
+    private enum class GestureAxis { UNDETERMINED, HORIZONTAL, VERTICAL }
+
     companion object {
         const val EXTRA_HOST = "host"
         const val EXTRA_PORT = "port"
@@ -1221,6 +1310,17 @@ class TerminalActivity : AppCompatActivity() {
         // default response to a wheel event is three lines, so stepping every
         // two rows works out to a comfortable ~1.5× amplification.
         private const val SCROLL_LINES_PER_WHEEL = 2f
+
+        // Horizontal-swipe thresholds for the tmux window-switch gesture.
+        // Distance is the commit threshold: once cumulative |dx| crosses it
+        // the mid-gesture overlay appears, and releasing here triggers the
+        // window switch. Ratio rejects steep diagonals so they stay vertical
+        // scrolls. Slop is the cumulative motion needed before the gesture
+        // commits to an axis — sized larger than the system touch slop so a
+        // tap-with-jitter doesn't latch onto either axis.
+        private const val SWIPE_MIN_DISTANCE_DP = 80
+        private const val SWIPE_HORIZONTAL_RATIO = 1.5f
+        private const val GESTURE_AXIS_LOCK_SLOP_DP = 16
 
         // Picked images are uploaded under /tmp on the remote host so they
         // are wiped automatically on reboot — no explicit cleanup is needed.

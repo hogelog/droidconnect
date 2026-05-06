@@ -44,6 +44,8 @@
     <string name="notification_text_connected">Connected to %1$s</string>
     <string name="notification_action_disconnect">Disconnect</string>
     <string name="fab_menu">Menu</string>
+    <string name="swipe_feedback_next_window">next window (^%1$s n)</string>
+    <string name="swipe_feedback_previous_window">previous window (^%1$s p)</string>
     <string name="image_upload_in_progress">Uploading image…</string>
     <string name="image_upload_failed">Image upload failed: %1$s</string>
     <string name="image_upload_read_failed">Failed to read image</string>

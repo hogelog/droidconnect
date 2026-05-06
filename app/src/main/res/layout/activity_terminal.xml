@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/terminal_background"
@@ -30,6 +31,23 @@
                 android:id="@+id/preedit_overlay"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent" />
+
+            <TextView
+                android:id="@+id/swipe_feedback"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:background="@drawable/bg_swipe_feedback"
+                android:elevation="4dp"
+                android:fontFamily="monospace"
+                android:paddingHorizontal="20dp"
+                android:paddingVertical="12dp"
+                android:textColor="?attr/colorOnSurface"
+                android:textSize="18sp"
+                android:visibility="gone"
+                tools:ignore="HardcodedText"
+                tools:text="next window (^B n)"
+                tools:visibility="visible" />
 
             <LinearLayout
                 android:id="@+id/fab_speed_dial"

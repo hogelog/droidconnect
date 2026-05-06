@@ -44,6 +44,14 @@
     <string name="notification_text_connected">Connected to %1$s</string>
     <string name="notification_action_disconnect">Disconnect</string>
     <string name="fab_menu">Menu</string>
+    <string name="swipe_feedback_left">← %1$s</string>
+    <string name="swipe_feedback_right">%1$s →</string>
+    <string name="swipe">swipe</string>
+    <string name="swipe_left">Swipe left</string>
+    <string name="swipe_right">Swipe right</string>
+    <string name="swipe_value">← %1$s / %2$s →</string>
+    <string name="swipe_dialog_title">Swipe gestures</string>
+    <string name="swipe_dialog_message">Payload bound to a horizontal swipe on the terminal. Same syntax as keyboard shortcuts. Empty disables that direction. {TMUX-PREFIX} expands to the configured tmux prefix byte.</string>
     <string name="image_upload_in_progress">Uploading image…</string>
     <string name="image_upload_failed">Image upload failed: %1$s</string>
     <string name="image_upload_read_failed">Failed to read image</string>

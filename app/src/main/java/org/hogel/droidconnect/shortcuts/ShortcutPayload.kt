@@ -21,6 +21,14 @@ sealed class ShortcutAction {
     }
 
     data class SendKey(val keyCode: Int, val keyMod: Int = 0) : ShortcutAction()
+
+    /**
+     * Send the user's configured tmux prefix as a single control byte (e.g.
+     * `^B` for prefix `b`). Resolved at execution time, not parse time, so a
+     * payload like `{TMUX-PREFIX}n` keeps working when the user changes the
+     * prefix letter on the connection screen.
+     */
+    object SendTmuxPrefix : ShortcutAction()
 }
 
 /**
@@ -37,6 +45,9 @@ sealed class ShortcutAction {
  * Recognised key tokens (route through KeyHandler so DECCKM/keypad modes are
  * honoured):
  *   `{UP}` `{DOWN}` `{LEFT}` `{RIGHT}` `{TAB}` `{S-TAB}`
+ *
+ * Recognised dynamic tokens (resolved by the caller at execution time):
+ *   `{TMUX-PREFIX}` — the configured tmux prefix as a single control byte
  *
  * Anything else is sent verbatim as UTF-8.
  *
@@ -133,5 +144,6 @@ private fun keyTokenAction(token: String): ShortcutAction? = when (token.upperca
         KeyEvent.KEYCODE_TAB,
         com.termux.terminal.KeyHandler.KEYMOD_SHIFT,
     )
+    "TMUX-PREFIX", "TMUX_PREFIX" -> ShortcutAction.SendTmuxPrefix
     else -> null
 }

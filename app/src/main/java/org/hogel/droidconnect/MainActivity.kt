@@ -18,7 +18,9 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.edit
 import org.hogel.droidconnect.databinding.ActivityMainBinding
+import org.hogel.droidconnect.databinding.DialogEditTmuxSwipeBinding
 import org.hogel.droidconnect.shortcuts.ShortcutStore
+import org.hogel.droidconnect.shortcuts.SwipeShortcuts
 import org.hogel.droidconnect.ssh.SshConnectionService
 import org.hogel.droidconnect.ssh.SshKeyManager
 import org.hogel.droidconnect.ui.ShortcutsSettingsActivity
@@ -34,6 +36,12 @@ class MainActivity : AppCompatActivity() {
     // this and saveConnectionInput persists it on pause, mirroring how the
     // other connection fields are handled.
     private var tmuxPrefix: String = DEFAULT_TMUX_PREFIX
+
+    // Backing store for the tmux-swipe payloads. The dialog edits this snapshot
+    // and saves it back through [ShortcutStore]; [TerminalActivity.onResume]
+    // re-reads from the store so a re-connect is unnecessary.
+    private val shortcutStore by lazy { ShortcutStore(this) }
+    private var swipeShortcuts: SwipeShortcuts = ShortcutStore.defaultSwipe()
 
     private var service: SshConnectionService? = null
     private var bindRegistered = false
@@ -76,6 +84,7 @@ class MainActivity : AppCompatActivity() {
         setupConnectionTargetToggle()
         setupSshKeyToggle()
         setupTmuxPrefixRow()
+        setupTmuxSwipeRow()
         setupShortcutsRow()
 
         updatePublicKeyDisplay()
@@ -193,6 +202,7 @@ class MainActivity : AppCompatActivity() {
         prefs.getString(KEY_USERNAME, null)?.let { binding.editUsername.setText(it) }
         binding.switchUseTmux.isChecked = prefs.getBoolean(KEY_USE_TMUX, true)
         tmuxPrefix = normalizeTmuxPrefix(prefs.getString(KEY_TMUX_PREFIX, DEFAULT_TMUX_PREFIX))
+        swipeShortcuts = shortcutStore.loadSwipe()
     }
 
     private fun saveConnectionInput() {
@@ -277,6 +287,51 @@ class MainActivity : AppCompatActivity() {
         binding.rowTmuxPrefix.setOnClickListener { showTmuxPrefixDialog() }
     }
 
+    private fun setupTmuxSwipeRow() {
+        renderSwipeRowValue()
+        binding.rowTmuxSwipe.setOnClickListener { showTmuxSwipeDialog() }
+    }
+
+    /**
+     * Render the swipe row's value label as `← <left> / <right> →`, with the
+     * dynamic `{TMUX-PREFIX}` token resolved against the current tmux prefix
+     * letter so the user sees the literal control sequence (e.g. `^B n`) that
+     * the gesture will emit. Empty payloads collapse to "—" so the slot is
+     * obviously unbound.
+     */
+    private fun renderSwipeRowValue() {
+        val prefixDisplay = "^${tmuxPrefix.uppercase()}"
+        fun preview(payload: String): String =
+            if (payload.isEmpty()) "—"
+            else payload.replace("{TMUX-PREFIX}", prefixDisplay)
+                .replace("{TMUX_PREFIX}", prefixDisplay)
+        binding.textTmuxSwipeValue.text = getString(
+            R.string.swipe_value,
+            preview(swipeShortcuts.left),
+            preview(swipeShortcuts.right),
+        )
+    }
+
+    private fun showTmuxSwipeDialog() {
+        val dialogBinding = DialogEditTmuxSwipeBinding.inflate(layoutInflater)
+        dialogBinding.editSwipeLeft.setText(swipeShortcuts.left)
+        dialogBinding.editSwipeRight.setText(swipeShortcuts.right)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.swipe_dialog_title)
+            .setMessage(R.string.swipe_dialog_message)
+            .setView(dialogBinding.root)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                swipeShortcuts = SwipeShortcuts(
+                    left = dialogBinding.editSwipeLeft.text.toString(),
+                    right = dialogBinding.editSwipeRight.text.toString(),
+                )
+                shortcutStore.saveSwipe(swipeShortcuts)
+                renderSwipeRowValue()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
     private fun showTmuxPrefixDialog() {
         val edit = EditText(this).apply {
             setText(tmuxPrefix)
@@ -298,6 +353,8 @@ class MainActivity : AppCompatActivity() {
                 tmuxPrefix = normalizeTmuxPrefix(edit.text.toString())
                 binding.textTmuxPrefixValue.text = getString(R.string.tmux_prefix_value, tmuxPrefix)
                 prefs.edit { putString(KEY_TMUX_PREFIX, tmuxPrefix) }
+                // Swipe preview embeds the prefix letter, so refresh it too.
+                renderSwipeRowValue()
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()

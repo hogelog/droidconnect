@@ -59,11 +59,30 @@ class ShortcutStore(context: Context) {
         prefs.edit { putString(KEY_CONTEXT, arr.toString()) }
     }
 
-    /** Drop both stored lists so the next read returns the bundled defaults. */
+    fun loadSwipe(): SwipeShortcuts {
+        val raw = prefs.getString(KEY_SWIPE, null) ?: return defaultSwipe()
+        return runCatching {
+            val obj = JSONObject(raw)
+            SwipeShortcuts(
+                left = obj.optString("left"),
+                right = obj.optString("right"),
+            )
+        }.getOrElse { defaultSwipe() }
+    }
+
+    fun saveSwipe(swipe: SwipeShortcuts) {
+        val obj = JSONObject()
+            .put("left", swipe.left)
+            .put("right", swipe.right)
+        prefs.edit { putString(KEY_SWIPE, obj.toString()) }
+    }
+
+    /** Drop all stored lists so the next read returns the bundled defaults. */
     fun resetToDefaults() {
         prefs.edit {
             remove(KEY_AUX)
             remove(KEY_CONTEXT)
+            remove(KEY_SWIPE)
         }
     }
 
@@ -87,6 +106,15 @@ class ShortcutStore(context: Context) {
         private const val PREFS_NAME = "shortcuts"
         private const val KEY_AUX = "aux"
         private const val KEY_CONTEXT = "context_groups"
+        private const val KEY_SWIPE = "swipe"
+
+        fun defaultSwipe(): SwipeShortcuts = SwipeShortcuts(
+            // Left = next window, right = previous (matches the swipe direction
+            // intuition from carousel UIs). `{TMUX-PREFIX}` expands at runtime
+            // so changing the prefix in settings keeps the gesture working.
+            left = "{TMUX-PREFIX}n",
+            right = "{TMUX-PREFIX}p",
+        )
 
         fun defaultAux(): List<Shortcut> = listOf(
             Shortcut("/", "/"),

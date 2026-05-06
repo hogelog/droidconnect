@@ -45,6 +45,7 @@ import org.hogel.droidconnect.R
 import org.hogel.droidconnect.databinding.ActivityTerminalBinding
 import org.hogel.droidconnect.shortcuts.ShortcutAction
 import org.hogel.droidconnect.shortcuts.ShortcutStore
+import org.hogel.droidconnect.shortcuts.SwipeShortcuts
 import org.hogel.droidconnect.shortcuts.parseShortcutActions
 import org.hogel.droidconnect.ssh.BiometricAuthenticationException
 import org.hogel.droidconnect.ssh.BiometricAuthenticator
@@ -213,10 +214,14 @@ class TerminalActivity : AppCompatActivity() {
     // started horizontal from flipping to vertical scroll partway through (and
     // vice versa), which otherwise produces a confusing mid-gesture handoff.
     private var gestureAxis = GestureAxis.UNDETERMINED
-    // Sign of the pending tmux window switch: -1 = next, +1 = previous, 0 =
-    // below the commit threshold so releasing now won't switch. Drives the
-    // mid-gesture overlay and the ACTION_UP commit decision.
+    // Sign of the pending swipe-gesture commit: -1 = left swipe, +1 = right
+    // swipe, 0 = below the commit threshold so releasing now won't fire.
+    // Drives the mid-gesture overlay and the ACTION_UP commit decision.
     private var pendingSwipeDirection = 0
+    // Snapshot of the user's swipe payloads. Refreshed on every onResume so
+    // edits made in [ShortcutsSettingsActivity] take effect on the next drag
+    // without a reconnect.
+    private var swipeShortcuts = SwipeShortcuts("", "")
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -341,6 +346,7 @@ class TerminalActivity : AppCompatActivity() {
         // bars on every resume so edits take effect the moment we come back.
         setupAuxKeyBar()
         applyAppContext(lastAppContext)
+        swipeShortcuts = shortcutStore.loadSwipe()
     }
 
     private fun startAndBindService() {
@@ -386,13 +392,16 @@ class TerminalActivity : AppCompatActivity() {
      *  modifier you'd pair with a shortcut, so consume it on use). */
     private fun runShortcutAction(payload: String): () -> Unit {
         val actions = parseShortcutActions(payload)
-        return {
-            for (action in actions) when (action) {
-                is ShortcutAction.SendBytes -> writeToSsh(action.bytes)
-                is ShortcutAction.SendKey -> sendKeyCode(action.keyCode, action.keyMod)
-            }
-            clearStickyModifiers()
+        return { runShortcutActions(actions) }
+    }
+
+    private fun runShortcutActions(actions: List<ShortcutAction>) {
+        for (action in actions) when (action) {
+            is ShortcutAction.SendBytes -> writeToSsh(action.bytes)
+            is ShortcutAction.SendKey -> sendKeyCode(action.keyCode, action.keyMod)
+            is ShortcutAction.SendTmuxPrefix -> writeToSsh(byteArrayOf(readTmuxPrefixByte()))
         }
+        clearStickyModifiers()
     }
 
     /**
@@ -593,7 +602,7 @@ class TerminalActivity : AppCompatActivity() {
         return (readTmuxPrefixLetter().code - 'a'.code + 1).toByte()
     }
 
-    private fun styleModifierButton(button: Button) {
+private fun styleModifierButton(button: Button) {
         button.background = ContextCompat.getDrawable(this, R.drawable.bg_aux_modifier)
         ContextCompat.getColorStateList(this, R.color.aux_modifier_text)?.let {
             button.setTextColor(it)
@@ -895,7 +904,13 @@ class TerminalActivity : AppCompatActivity() {
                 val absDy = abs(totalDy)
                 if (gestureAxis == GestureAxis.UNDETERMINED) {
                     if (max(absDx, absDy) < dpToPx(GESTURE_AXIS_LOCK_SLOP_DP)) return false
-                    gestureAxis = if (useTmux && absDx > absDy * SWIPE_HORIZONTAL_RATIO) {
+                    // Horizontal lock requires at least one direction with a
+                    // non-empty payload. If the user has cleared both, swipes
+                    // fall through to TerminalView like any plain horizontal
+                    // drag would.
+                    val swipeBound = swipeShortcuts.left.isNotEmpty() ||
+                        swipeShortcuts.right.isNotEmpty()
+                    gestureAxis = if (swipeBound && absDx > absDy * SWIPE_HORIZONTAL_RATIO) {
                         GestureAxis.HORIZONTAL
                     } else {
                         GestureAxis.VERTICAL
@@ -908,8 +923,16 @@ class TerminalActivity : AppCompatActivity() {
                     // TerminalView never sees the motion. Otherwise its native
                     // text-selection long-press could fire from a slow swipe.
                     handlingScrollGesture = true
-                    val direction = when {
+                    val rawDirection = when {
                         absDx >= dpToPx(SWIPE_MIN_DISTANCE_DP) -> if (totalDx > 0) +1 else -1
+                        else -> 0
+                    }
+                    // Treat "direction with empty payload" as "no commit" so
+                    // the overlay only appears when releasing here would
+                    // actually do something.
+                    val direction = when (rawDirection) {
+                        +1 -> if (swipeShortcuts.right.isNotEmpty()) +1 else 0
+                        -1 -> if (swipeShortcuts.left.isNotEmpty()) -1 else 0
                         else -> 0
                     }
                     if (direction != pendingSwipeDirection) {
@@ -1016,25 +1039,39 @@ class TerminalActivity : AppCompatActivity() {
     }
 
     /**
-     * Send the tmux prefix + window-navigation byte for the currently pending
-     * swipe direction. Caller is responsible for clearing [pendingSwipeDirection]
-     * and the overlay afterwards.
+     * Run the configured payload for the currently pending swipe direction.
+     * Caller is responsible for clearing [pendingSwipeDirection] and the
+     * overlay afterwards.
      */
     private fun commitPendingSwipe() {
-        val prefix = readTmuxPrefixByte()
-        val nav: Byte = if (pendingSwipeDirection > 0) 'p'.code.toByte() else 'n'.code.toByte()
-        writeToSsh(byteArrayOf(prefix, nav))
-        clearStickyModifiers()
+        val payload = if (pendingSwipeDirection > 0) swipeShortcuts.right else swipeShortcuts.left
+        if (payload.isEmpty()) return
+        runShortcutActions(parseShortcutActions(payload))
     }
 
     private fun showSwipeFeedback(direction: Int) {
-        val prefixLetter = readTmuxPrefixLetter().uppercaseChar()
+        val payload = if (direction > 0) swipeShortcuts.right else swipeShortcuts.left
+        if (payload.isEmpty()) return
+        val preview = previewSwipePayload(payload)
         binding.swipeFeedback.text = if (direction > 0) {
-            getString(R.string.swipe_feedback_previous_window, prefixLetter)
+            getString(R.string.swipe_feedback_right, preview)
         } else {
-            getString(R.string.swipe_feedback_next_window, prefixLetter)
+            getString(R.string.swipe_feedback_left, preview)
         }
         binding.swipeFeedback.visibility = View.VISIBLE
+    }
+
+    /**
+     * Render a payload for the mid-gesture overlay. Substitutes the dynamic
+     * `{TMUX-PREFIX}` token with the user's configured prefix so the user can
+     * see the literal control sequence that will fire (`^B n` rather than
+     * `{TMUX-PREFIX}n`); other tokens stay verbatim.
+     */
+    private fun previewSwipePayload(payload: String): String {
+        val prefix = readTmuxPrefixLetter().uppercaseChar()
+        return payload
+            .replace("{TMUX-PREFIX}", "^$prefix")
+            .replace("{TMUX_PREFIX}", "^$prefix")
     }
 
     private fun hideSwipeFeedback() {

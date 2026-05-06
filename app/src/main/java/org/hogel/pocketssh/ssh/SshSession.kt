@@ -121,7 +121,7 @@ class SshSession(
 
     companion object {
         private const val TAG = "SshSession"
-        private const val TMUX_SESSION_NAME = "droidconnect"
+        private const val TMUX_SESSION_NAME = "pocketssh"
     }
 }
 

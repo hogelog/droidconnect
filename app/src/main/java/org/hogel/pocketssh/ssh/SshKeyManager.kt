@@ -72,7 +72,7 @@ class SshKeyManager {
         KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
 
     companion object {
-        const val KEY_ALIAS = "droidconnect-ssh-key"
+        const val KEY_ALIAS = "pocketssh-ssh-key"
 
         /**
          * How long a single biometric authentication keeps the keystore key

@@ -81,10 +81,9 @@ class ShortcutStore(context: Context) {
                 ),
             ),
             // The "tmux" group replaces the old hardcoded `useTmux` branch in
-            // setupFabSpeedDial and the global swipe payloads. Left = next /
-            // right = previous matches the old defaults, which deliberately
-            // mirror the carousel-style "swipe forward / swipe back" intuition
-            // rather than tmux's own n/p letters.
+            // setupFabSpeedDial and the global swipe payloads. Swipe direction
+            // mirrors the FAB arrows: ⬅️ / swipe-left = previous window,
+            // ➡️ / swipe-right = next window.
             ContextGroup(
                 name = "tmux",
                 useTmux = true,
@@ -93,8 +92,8 @@ class ShortcutStore(context: Context) {
                     Shortcut("⬅️", "{TMUX-PREFIX}p"),
                     Shortcut("➡️", "{TMUX-PREFIX}n"),
                 ),
-                swipeLeft = Shortcut("next", "{TMUX-PREFIX}n"),
-                swipeRight = Shortcut("prev", "{TMUX-PREFIX}p"),
+                swipeLeft = Shortcut("prev", "{TMUX-PREFIX}p"),
+                swipeRight = Shortcut("next", "{TMUX-PREFIX}n"),
             ),
             ContextGroup(
                 name = "claude",

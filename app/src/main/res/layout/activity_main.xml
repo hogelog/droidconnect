@@ -276,36 +276,6 @@
             </LinearLayout>
 
             <LinearLayout
-                android:id="@+id/row_tmux_swipe"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="?attr/selectableItemBackground"
-                android:gravity="center_vertical"
-                android:minHeight="48dp"
-                android:orientation="horizontal"
-                android:paddingHorizontal="8dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginEnd="12dp"
-                    android:text="@string/swipe"
-                    android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:textColor="?attr/colorOnSurfaceVariant" />
-
-                <TextView
-                    android:id="@+id/text_tmux_swipe_value"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:ellipsize="end"
-                    android:fontFamily="monospace"
-                    android:singleLine="true"
-                    android:textAppearance="?attr/textAppearanceBodyLarge"
-                    tools:text="← ^B n / ^B p →" />
-            </LinearLayout>
-
-            <LinearLayout
                 android:id="@+id/header_shortcuts"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

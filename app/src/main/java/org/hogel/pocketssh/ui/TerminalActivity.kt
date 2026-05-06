@@ -24,9 +24,9 @@ import android.view.View
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
-import android.widget.GridLayout
+import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
-import android.widget.Space
 import android.widget.Toast
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -43,10 +43,12 @@ import java.util.concurrent.Executors
 import java.util.concurrent.SynchronousQueue
 import org.hogel.pocketssh.R
 import org.hogel.pocketssh.databinding.ActivityTerminalBinding
+import org.hogel.pocketssh.shortcuts.ResolvedContext
+import org.hogel.pocketssh.shortcuts.Shortcut
 import org.hogel.pocketssh.shortcuts.ShortcutAction
 import org.hogel.pocketssh.shortcuts.ShortcutStore
-import org.hogel.pocketssh.shortcuts.SwipeShortcuts
 import org.hogel.pocketssh.shortcuts.parseShortcutActions
+import org.hogel.pocketssh.shortcuts.resolve
 import org.hogel.pocketssh.ssh.BiometricAuthenticationException
 import org.hogel.pocketssh.ssh.BiometricAuthenticator
 import org.hogel.pocketssh.ssh.HostKeyPrompt
@@ -173,12 +175,13 @@ class TerminalActivity : AppCompatActivity() {
     private var stickyCtrl = false
     private var ctrlButton: Button? = null
 
-    // Whether this connection is using tmux. Drives the tmux pane shortcuts
-    // (prefix C-b + create/next/prev) in the FAB speed dial. Authoritative
-    // value lives on [SshConnectionService.useTmux]; this field is populated
-    // from there once the service binds, so the UI reflects the active session
-    // even when the activity was recreated without intent extras (resumed from
-    // the notification or from MainActivity's "open" button).
+    // Whether this connection is using tmux. Routes into ContextGroup.matches
+    // alongside the active foreground command name so that groups gated on
+    // [ContextGroup.useTmux] activate. Authoritative value lives on
+    // [SshConnectionService.useTmux]; this field is populated from there once
+    // the service binds, so the UI reflects the active session even when the
+    // activity was recreated without intent extras (resumed from the
+    // notification or from MainActivity's "open" button).
     private var useTmux = false
 
     // FAB speed dial expansion state. Toggled by tapping the main FAB; child
@@ -218,10 +221,16 @@ class TerminalActivity : AppCompatActivity() {
     // swipe, 0 = below the commit threshold so releasing now won't fire.
     // Drives the mid-gesture overlay and the ACTION_UP commit decision.
     private var pendingSwipeDirection = 0
-    // Snapshot of the user's swipe payloads. Refreshed on every onResume so
-    // edits made in [ShortcutsSettingsActivity] take effect on the next drag
-    // without a reconnect.
-    private var swipeShortcuts = SwipeShortcuts("", "")
+    // Snapshot of the resolved ContextGroup cascade for the active state.
+    // Populated by [applyContext] and consulted by every render path
+    // (shortcut bar, FAB, swipe gesture handler) so they share a single
+    // source of truth.
+    private var resolved: ResolvedContext = ResolvedContext(
+        shortcutRows = emptyList(),
+        swipeLeft = null,
+        swipeRight = null,
+        fabRows = emptyList(),
+    )
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -283,12 +292,12 @@ class TerminalActivity : AppCompatActivity() {
                 }
                 else -> syncWindowSize(svc)
             }
-            // Build the FAB now that the service has authoritative useTmux,
-            // and re-apply the cached app context so the per-app shortcut row
-            // survives even when the title OSC has rolled out of the buffer.
+            // Resolve the ContextGroup cascade now that the service has
+            // authoritative useTmux. Re-apply the cached app context so the
+            // per-app shortcut row survives even when the title OSC has rolled
+            // out of the buffer.
             useTmux = svc.useTmux
-            setupFabSpeedDial()
-            svc.lastTitle?.let { applyAppContext(it) }
+            applyContext(svc.lastTitle ?: lastAppContext)
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
@@ -320,9 +329,10 @@ class TerminalActivity : AppCompatActivity() {
 
         setupTerminalView()
         setupTerminalScrollRouting()
-        setupAuxKeyBar()
-        // The FAB is rebuilt in onServiceConnected once we know the active
-        // session's useTmux value; until then leave the dial empty.
+        // Render an initial pass with whatever defaults resolve at specifity 0
+        // (the "always" group). The FAB and per-app rows fill in once the
+        // service binds and reports useTmux / lastTitle.
+        applyContext(null)
         binding.fabMain.setOnClickListener { setFabExpanded(!fabExpanded) }
         setFabExpanded(false)
 
@@ -342,11 +352,10 @@ class TerminalActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // The shortcuts settings screen lives in another activity. Rebuild the
-        // bars on every resume so edits take effect the moment we come back.
-        setupAuxKeyBar()
-        applyAppContext(lastAppContext)
-        swipeShortcuts = shortcutStore.loadSwipe()
+        // The shortcuts settings screen lives in another activity. Re-resolve
+        // the cascade on every resume so edits take effect the moment we come
+        // back, without waiting for tmux to re-emit the title OSC.
+        applyContext(lastAppContext)
     }
 
     private fun startAndBindService() {
@@ -367,29 +376,112 @@ class TerminalActivity : AppCompatActivity() {
     }
 
     /**
-     * Build the always-on aux key bar from [ShortcutStore.loadAux]. The Ctrl
-     * sticky-modifier toggle is fixed (it cannot be expressed as a payload),
-     * so it always sits leftmost; everything to its right is user-editable
-     * via [ShortcutsSettingsActivity].
+     * Resolve the [ContextGroup] cascade for the current state and rebuild the
+     * shortcut bar, the FAB rows, and the swipe payloads. Called whenever any
+     * input to the resolution changes — the active foreground command name
+     * (from the title OSC), the [useTmux] flag (once the service binds), or
+     * a return from the settings activity that may have edited the groups.
      */
-    private fun setupAuxKeyBar() {
-        val bar = binding.auxKeyBar
+    private fun applyContext(app: String?) {
+        lastAppContext = app
+        resolved = shortcutStore.loadContextGroups().resolve(useTmux, app)
+        rebuildShortcutBar(resolved.shortcutRows)
+        rebuildFab(resolved.fabRows)
+    }
+
+    /**
+     * Rebuild the shortcut bar. Each contributing [ContextGroup] becomes one
+     * horizontally-scrolling row, stacked specifity high → low so the
+     * "always" baseline sits closest to the keyboard. Ctrl is appended to
+     * the bottom-most row as a sticky modifier toggle; it can't be expressed
+     * inside a [ContextGroup] because it has no payload. When no group
+     * contributes shortcuts the bar still renders a Ctrl-only baseline row.
+     */
+    private fun rebuildShortcutBar(rows: List<List<Shortcut>>) {
+        val bar = binding.shortcutBar
         bar.removeAllViews()
 
-        ctrlButton = makeAuxButton("Ctrl") { setCtrlSticky(!stickyCtrl) }
-            .also { styleModifierButton(it); bar.addView(it, auxButtonLayoutParams()) }
+        val displayRows = if (rows.isEmpty()) listOf(emptyList()) else rows
+        val lastIndex = displayRows.lastIndex
 
-        for (shortcut in shortcutStore.loadAux()) {
-            bar.addView(
-                makeAuxButton(shortcut.label, runShortcutAction(shortcut.payload)),
-                auxButtonLayoutParams(),
-            )
+        for ((idx, row) in displayRows.withIndex()) {
+            val rowLayout = addShortcutRow()
+            if (idx == lastIndex) {
+                ctrlButton = makeAuxButton("Ctrl") { setCtrlSticky(!stickyCtrl) }
+                    .also { styleModifierButton(it); rowLayout.addView(it, auxButtonLayoutParams()) }
+            }
+            for (shortcut in row) {
+                rowLayout.addView(
+                    makeAuxButton(shortcut.label, runShortcutAction(shortcut.payload)),
+                    auxButtonLayoutParams(),
+                )
+            }
         }
     }
 
-    /** Wraps a payload string into a click handler that runs its actions and
-     *  clears sticky modifiers (the existing aux-bar contract — Ctrl is the
-     *  modifier you'd pair with a shortcut, so consume it on use). */
+    /**
+     * Append a horizontally-scrollable row to [binding.shortcutBar] and
+     * return the inner [LinearLayout] for caller-supplied buttons. Per-row
+     * scrolling keeps an over-stuffed group from forcing the whole bar to
+     * scroll sideways and stranding higher-priority rows.
+     */
+    private fun addShortcutRow(): LinearLayout {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(dpToPx(4), 0, dpToPx(4), 0)
+        }
+        val scroll = HorizontalScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            )
+            isHorizontalScrollBarEnabled = false
+            addView(
+                row,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+        }
+        binding.shortcutBar.addView(scroll)
+        return row
+    }
+
+    /**
+     * Rebuild the FAB speed-dial menu. Each [ContextGroup] that contributed a
+     * non-empty `fabItems` list becomes one horizontal row; rows are stacked
+     * specifity high → low (closest match at the top, "always" at the bottom).
+     */
+    private fun rebuildFab(rows: List<List<Shortcut>>) {
+        val container = binding.fabActions
+        container.removeAllViews()
+
+        for (row in rows) {
+            val rowView = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { gravity = android.view.Gravity.END }
+                gravity = android.view.Gravity.END
+            }
+            for (shortcut in row) {
+                val btn = makeAuxButton(shortcut.label) {
+                    runShortcutActions(parseShortcutActions(shortcut.payload))
+                    setFabExpanded(false)
+                }
+                // Override the bar-button background with the FAB variant —
+                // same fill but with a 1dp stroke, so adjacent buttons render
+                // thin inter-cell borders without a divider mechanism.
+                btn.background = ContextCompat.getDrawable(this, R.drawable.bg_fab_button)
+                rowView.addView(btn)
+            }
+            container.addView(rowView)
+        }
+    }
+
+    /** Wraps a payload string into a click handler that runs its actions. */
     private fun runShortcutAction(payload: String): () -> Unit {
         val actions = parseShortcutActions(payload)
         return { runShortcutActions(actions) }
@@ -400,49 +492,11 @@ class TerminalActivity : AppCompatActivity() {
             is ShortcutAction.SendBytes -> writeToSsh(action.bytes)
             is ShortcutAction.SendKey -> sendKeyCode(action.keyCode, action.keyMod)
             is ShortcutAction.SendTmuxPrefix -> writeToSsh(byteArrayOf(readTmuxPrefixByte()))
+            is ShortcutAction.Copy -> startTextSelection()
+            is ShortcutAction.Paste -> pasteClipboardToSsh()
+            is ShortcutAction.ImagePaste -> launchImagePicker()
         }
         clearStickyModifiers()
-    }
-
-    /**
-     * Wire up the bottom-end FAB and its speed-dial children. The dial holds
-     * Select plus, when [useTmux] is true, the tmux window navigation actions
-     * — they used to live as pinned buttons on the right edge of the context
-     * row but rarely needed real-time access, so a collapsed FAB reclaims that
-     * space for the terminal.
-     */
-    private fun setupFabSpeedDial() {
-        // The dial expands above the FAB as a rounded "menu card" GridLayout.
-        // With tmux it's a 3-column, 2-row rectangle anchored on the right —
-        // a placeholder cell in the bottom-left aligns the per-pane utilities
-        // under the right two cells of the window-management triplet:
-        //     ➕ ⬅️ ➡️
-        //        📋 🖼
-        // Without tmux only the per-pane pair is shown, so the card becomes a
-        // single 2-column row.
-        val container = binding.fabActions
-        container.removeAllViews()
-        container.columnCount = if (useTmux) 3 else 2
-
-        fun addFabButton(label: String, action: () -> Unit) {
-            val btn = makeAuxButton(label) {
-                action()
-                setFabExpanded(false)
-            }
-            // Override the bar-button background with the FAB variant: same
-            // fill but with a 1dp stroke, so adjacent buttons in the grid show
-            // a thin inter-cell border without a divider mechanism.
-            btn.background = ContextCompat.getDrawable(this, R.drawable.bg_fab_button)
-            container.addView(btn)
-        }
-
-        if (useTmux) {
-            for ((label, action) in tmuxWindowShortcuts()) addFabButton(label, action)
-            // Anchor the bottom row to the right two cells.
-            container.addView(Space(this), GridLayout.LayoutParams())
-        }
-        addFabButton("\uD83D\uDCCB", ::startTextSelection)      // 📋 select
-        addFabButton("\uD83D\uDDBC", ::launchImagePicker)       // 🖼 image picker
     }
 
     private fun setFabExpanded(expanded: Boolean) {
@@ -541,46 +595,6 @@ class TerminalActivity : AppCompatActivity() {
             action()
             binding.imeProxy.requestFocus()
         }
-    }
-
-    /**
-     * Rebuild the context shortcut bar above the static aux key bar based on
-     * the active tmux pane's foreground command (delivered as the OSC window
-     * title once `tmux set -g set-titles on` is in effect; configured by
-     * [SshSession]). When no shortcuts apply the row collapses to zero height,
-     * since its only content lives inside [contextKeyBar].
-     */
-    private fun applyAppContext(app: String?) {
-        lastAppContext = app
-        val shortcuts = shortcutStore.shortcutsForContext(app)
-        val bar = binding.contextKeyBar
-        bar.removeAllViews()
-        for (shortcut in shortcuts) {
-            bar.addView(
-                makeAuxButton(shortcut.label, runShortcutAction(shortcut.payload)),
-                auxButtonLayoutParams(),
-            )
-        }
-    }
-
-    /**
-     * tmux window navigation actions surfaced through the FAB speed dial when
-     * [useTmux] is true. Sends `prefix + c` new window, `prefix + n` next
-     * window, `prefix + p` previous window. Prefix byte comes from the user's
-     * configured letter on the connection screen (default `b` → C-b), and
-     * must match the prefix bound in the user's tmux config.
-     */
-    private fun tmuxWindowShortcuts(): List<Pair<String, () -> Unit>> {
-        fun sendBytes(bytes: ByteArray): () -> Unit = {
-            writeToSsh(bytes)
-            clearStickyModifiers()
-        }
-        val prefix: Byte = readTmuxPrefixByte()
-        return listOf(
-            "➕" to sendBytes(byteArrayOf(prefix, 'c'.code.toByte())),
-            "\u2B05\uFE0F" to sendBytes(byteArrayOf(prefix, 'p'.code.toByte())), // ⬅️
-            "\u27A1\uFE0F" to sendBytes(byteArrayOf(prefix, 'n'.code.toByte())), // ➡️
-        )
     }
 
     /**
@@ -908,8 +922,7 @@ private fun styleModifierButton(button: Button) {
                     // non-empty payload. If the user has cleared both, swipes
                     // fall through to TerminalView like any plain horizontal
                     // drag would.
-                    val swipeBound = swipeShortcuts.left.isNotEmpty() ||
-                        swipeShortcuts.right.isNotEmpty()
+                    val swipeBound = resolved.swipeLeft != null || resolved.swipeRight != null
                     gestureAxis = if (swipeBound && absDx > absDy * SWIPE_HORIZONTAL_RATIO) {
                         GestureAxis.HORIZONTAL
                     } else {
@@ -931,8 +944,8 @@ private fun styleModifierButton(button: Button) {
                     // the overlay only appears when releasing here would
                     // actually do something.
                     val direction = when (rawDirection) {
-                        +1 -> if (swipeShortcuts.right.isNotEmpty()) +1 else 0
-                        -1 -> if (swipeShortcuts.left.isNotEmpty()) -1 else 0
+                        +1 -> if (resolved.swipeRight != null) +1 else 0
+                        -1 -> if (resolved.swipeLeft != null) -1 else 0
                         else -> 0
                     }
                     if (direction != pendingSwipeDirection) {
@@ -1044,21 +1057,21 @@ private fun styleModifierButton(button: Button) {
      * overlay afterwards.
      */
     private fun commitPendingSwipe() {
-        val payload = if (pendingSwipeDirection > 0) swipeShortcuts.right else swipeShortcuts.left
-        if (payload.isEmpty()) return
-        runShortcutActions(parseShortcutActions(payload))
+        val shortcut = activeSwipeShortcut(pendingSwipeDirection) ?: return
+        runShortcutActions(parseShortcutActions(shortcut.payload))
     }
 
     private fun showSwipeFeedback(direction: Int) {
-        val payload = if (direction > 0) swipeShortcuts.right else swipeShortcuts.left
-        if (payload.isEmpty()) return
-        val preview = previewSwipePayload(payload)
-        binding.swipeFeedback.text = if (direction > 0) {
-            getString(R.string.swipe_feedback_right, preview)
-        } else {
-            getString(R.string.swipe_feedback_left, preview)
-        }
+        val shortcut = activeSwipeShortcut(direction) ?: return
+        val preview = previewSwipePayload(shortcut.payload)
+        binding.swipeFeedback.text = getString(R.string.swipe_feedback, shortcut.label, preview)
         binding.swipeFeedback.visibility = View.VISIBLE
+    }
+
+    private fun activeSwipeShortcut(direction: Int): Shortcut? = when {
+        direction > 0 -> resolved.swipeRight
+        direction < 0 -> resolved.swipeLeft
+        else -> null
     }
 
     /**
@@ -1204,7 +1217,7 @@ private fun styleModifierButton(button: Button) {
             // up the active app context without waiting for tmux to re-emit
             // the title OSC (it only does so on changes).
             service?.lastTitle = title
-            applyAppContext(title)
+            applyContext(title)
         }
         override fun onSessionFinished(finishedSession: TerminalSession) {}
         override fun onCopyTextToClipboard(session: TerminalSession, text: String?) {

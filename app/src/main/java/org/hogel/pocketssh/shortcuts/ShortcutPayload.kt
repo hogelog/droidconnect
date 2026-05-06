@@ -29,6 +29,18 @@ sealed class ShortcutAction {
      * prefix letter on the connection screen.
      */
     object SendTmuxPrefix : ShortcutAction()
+
+    /** Enter the terminal's text-selection mode (the floating Copy/Paste/More toolbar). */
+    object Copy : ShortcutAction()
+
+    /** Paste the system clipboard text into the SSH stdin (bracketed-paste aware). */
+    object Paste : ShortcutAction()
+
+    /**
+     * Open the system image picker so the user can choose an image to upload
+     * to the remote host. The handler decides what to do with the picked URI.
+     */
+    object ImagePaste : ShortcutAction()
 }
 
 /**
@@ -48,6 +60,9 @@ sealed class ShortcutAction {
  *
  * Recognised dynamic tokens (resolved by the caller at execution time):
  *   `{TMUX-PREFIX}` — the configured tmux prefix as a single control byte
+ *   `{COPY}`        — enter the terminal's text-selection / copy mode
+ *   `{PASTE}`       — paste the system clipboard text into ssh stdin
+ *   `{IMAGE-PASTE}` — open the image picker so the user can upload an image
  *
  * Anything else is sent verbatim as UTF-8.
  *
@@ -145,5 +160,8 @@ private fun keyTokenAction(token: String): ShortcutAction? = when (token.upperca
         com.termux.terminal.KeyHandler.KEYMOD_SHIFT,
     )
     "TMUX-PREFIX", "TMUX_PREFIX" -> ShortcutAction.SendTmuxPrefix
+    "COPY" -> ShortcutAction.Copy
+    "PASTE" -> ShortcutAction.Paste
+    "IMAGE-PASTE", "IMAGE_PASTE" -> ShortcutAction.ImagePaste
     else -> null
 }

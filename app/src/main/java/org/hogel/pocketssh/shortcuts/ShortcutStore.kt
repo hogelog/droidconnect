@@ -115,7 +115,7 @@ class ShortcutStore(context: Context) {
             ),
         )
 
-        private fun encodeContextGroups(groups: List<ContextGroup>): JSONArray {
+        internal fun encodeContextGroups(groups: List<ContextGroup>): JSONArray {
             val arr = JSONArray()
             for (g in groups) arr.put(encodeContextGroup(g))
             return arr
@@ -137,7 +137,7 @@ class ShortcutStore(context: Context) {
             return obj
         }
 
-        private fun decodeContextGroups(arr: JSONArray): List<ContextGroup> = buildList {
+        internal fun decodeContextGroups(arr: JSONArray): List<ContextGroup> = buildList {
             for (i in 0 until arr.length()) {
                 add(decodeContextGroup(arr.getJSONObject(i)))
             }

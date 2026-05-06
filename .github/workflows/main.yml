@@ -61,7 +61,7 @@ jobs:
         run: |
           SHORT_SHA="${HEAD_SHA:0:7}"
           TAG="main-debug"
-          APK_NAME="droidconnect-main-${SHORT_SHA}-debug.apk"
+          APK_NAME="pocketsecureshell-main-${SHORT_SHA}-debug.apk"
           cp app/build/outputs/apk/debug/app-debug.apk "$APK_NAME"
           # Replace any existing main-debug release so only the latest main
           # build is published under this tag.

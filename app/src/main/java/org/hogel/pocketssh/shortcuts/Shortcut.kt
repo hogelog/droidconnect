@@ -1,4 +1,4 @@
-package org.hogel.droidconnect.shortcuts
+package org.hogel.pocketssh.shortcuts
 
 /**
  * A user-configurable shortcut button. [label] is the visible text; [payload]

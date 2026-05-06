@@ -1,4 +1,4 @@
-package org.hogel.droidconnect.ui
+package org.hogel.pocketssh.ui
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -10,13 +10,13 @@ import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
-import org.hogel.droidconnect.R
-import org.hogel.droidconnect.databinding.ActivityShortcutsSettingsBinding
-import org.hogel.droidconnect.databinding.DialogEditContextGroupBinding
-import org.hogel.droidconnect.databinding.DialogEditShortcutBinding
-import org.hogel.droidconnect.shortcuts.ContextGroup
-import org.hogel.droidconnect.shortcuts.Shortcut
-import org.hogel.droidconnect.shortcuts.ShortcutStore
+import org.hogel.pocketssh.R
+import org.hogel.pocketssh.databinding.ActivityShortcutsSettingsBinding
+import org.hogel.pocketssh.databinding.DialogEditContextGroupBinding
+import org.hogel.pocketssh.databinding.DialogEditShortcutBinding
+import org.hogel.pocketssh.shortcuts.ContextGroup
+import org.hogel.pocketssh.shortcuts.Shortcut
+import org.hogel.pocketssh.shortcuts.ShortcutStore
 
 /**
  * Edit screen for the two shortcut bars used by [TerminalActivity]. Reads from

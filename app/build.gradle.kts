@@ -50,11 +50,11 @@ configurations.configureEach {
 }
 
 android {
-    namespace = "org.hogel.droidconnect"
+    namespace = "org.hogel.pocketssh"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "org.hogel.droidconnect"
+        applicationId = "org.hogel.pocketssh"
         minSdk = 34
         targetSdk = 36
         versionCode = appVersionCode

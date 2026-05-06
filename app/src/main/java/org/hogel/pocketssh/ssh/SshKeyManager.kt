@@ -1,4 +1,4 @@
-package org.hogel.droidconnect.ssh
+package org.hogel.pocketssh.ssh
 
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -85,6 +85,6 @@ class SshKeyManager {
         const val VALIDITY_SECONDS = 30 * 60
 
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
-        private const val KEY_COMMENT = "droidconnect"
+        private const val KEY_COMMENT = "pocketssh"
     }
 }

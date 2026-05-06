@@ -1,4 +1,4 @@
-package org.hogel.droidconnect
+package org.hogel.pocketssh
 
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -17,14 +17,14 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.edit
-import org.hogel.droidconnect.databinding.ActivityMainBinding
-import org.hogel.droidconnect.databinding.DialogEditTmuxSwipeBinding
-import org.hogel.droidconnect.shortcuts.ShortcutStore
-import org.hogel.droidconnect.shortcuts.SwipeShortcuts
-import org.hogel.droidconnect.ssh.SshConnectionService
-import org.hogel.droidconnect.ssh.SshKeyManager
-import org.hogel.droidconnect.ui.ShortcutsSettingsActivity
-import org.hogel.droidconnect.ui.TerminalActivity
+import org.hogel.pocketssh.databinding.ActivityMainBinding
+import org.hogel.pocketssh.databinding.DialogEditTmuxSwipeBinding
+import org.hogel.pocketssh.shortcuts.ShortcutStore
+import org.hogel.pocketssh.shortcuts.SwipeShortcuts
+import org.hogel.pocketssh.ssh.SshConnectionService
+import org.hogel.pocketssh.ssh.SshKeyManager
+import org.hogel.pocketssh.ui.ShortcutsSettingsActivity
+import org.hogel.pocketssh.ui.TerminalActivity
 
 class MainActivity : AppCompatActivity() {
 

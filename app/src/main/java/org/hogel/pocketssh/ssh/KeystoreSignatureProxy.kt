@@ -1,4 +1,4 @@
-package org.hogel.droidconnect.ssh
+package org.hogel.pocketssh.ssh
 
 import android.security.keystore.UserNotAuthenticatedException
 import com.trilead.ssh2.auth.SignatureProxy

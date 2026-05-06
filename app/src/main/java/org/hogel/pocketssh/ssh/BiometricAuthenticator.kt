@@ -1,4 +1,4 @@
-package org.hogel.droidconnect.ssh
+package org.hogel.pocketssh.ssh
 
 /**
  * Shows a biometric prompt that unlocks the keystore for the configured

@@ -1,4 +1,4 @@
-package org.hogel.droidconnect.ui
+package org.hogel.pocketssh.ui
 
 import android.content.Context
 import android.text.InputType

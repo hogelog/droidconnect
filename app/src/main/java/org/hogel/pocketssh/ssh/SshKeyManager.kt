@@ -1,4 +1,4 @@
-package org.hogel.droidconnect.ssh
+package org.hogel.pocketssh.ssh
 
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -72,7 +72,7 @@ class SshKeyManager {
         KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
 
     companion object {
-        const val KEY_ALIAS = "droidconnect-ssh-key"
+        const val KEY_ALIAS = "pocketssh-ssh-key"
 
         /**
          * How long a single biometric authentication keeps the keystore key
@@ -85,6 +85,6 @@ class SshKeyManager {
         const val VALIDITY_SECONDS = 30 * 60
 
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
-        private const val KEY_COMMENT = "droidconnect"
+        private const val KEY_COMMENT = "pocketssh"
     }
 }

@@ -1,4 +1,4 @@
-package org.hogel.droidconnect.ui
+package org.hogel.pocketssh.ui
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -41,17 +41,17 @@ import java.util.Locale
 import java.util.TimeZone
 import java.util.concurrent.Executors
 import java.util.concurrent.SynchronousQueue
-import org.hogel.droidconnect.R
-import org.hogel.droidconnect.databinding.ActivityTerminalBinding
-import org.hogel.droidconnect.shortcuts.ShortcutAction
-import org.hogel.droidconnect.shortcuts.ShortcutStore
-import org.hogel.droidconnect.shortcuts.SwipeShortcuts
-import org.hogel.droidconnect.shortcuts.parseShortcutActions
-import org.hogel.droidconnect.ssh.BiometricAuthenticationException
-import org.hogel.droidconnect.ssh.BiometricAuthenticator
-import org.hogel.droidconnect.ssh.HostKeyPrompt
-import org.hogel.droidconnect.ssh.SshConnectionService
-import org.hogel.droidconnect.ssh.SshKeyManager
+import org.hogel.pocketssh.R
+import org.hogel.pocketssh.databinding.ActivityTerminalBinding
+import org.hogel.pocketssh.shortcuts.ShortcutAction
+import org.hogel.pocketssh.shortcuts.ShortcutStore
+import org.hogel.pocketssh.shortcuts.SwipeShortcuts
+import org.hogel.pocketssh.shortcuts.parseShortcutActions
+import org.hogel.pocketssh.ssh.BiometricAuthenticationException
+import org.hogel.pocketssh.ssh.BiometricAuthenticator
+import org.hogel.pocketssh.ssh.HostKeyPrompt
+import org.hogel.pocketssh.ssh.SshConnectionService
+import org.hogel.pocketssh.ssh.SshKeyManager
 import com.termux.terminal.KeyHandler
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession
@@ -481,7 +481,7 @@ class TerminalActivity : AppCompatActivity() {
         val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).apply {
             timeZone = TimeZone.getTimeZone("Asia/Tokyo")
         }.format(Date())
-        val filename = "droidconnect-$timestamp.$ext"
+        val filename = "pocketssh-$timestamp.$ext"
         val bytes = try {
             resolver.openInputStream(uri)?.use { it.readBytes() }
         } catch (e: Exception) {
@@ -1095,7 +1095,7 @@ private fun styleModifierButton(button: Button) {
     private fun copySelectedTextToClipboard(text: String?) {
         if (text.isNullOrEmpty()) return
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("droidconnect", text))
+        clipboard.setPrimaryClip(ClipData.newPlainText("pocketssh", text))
     }
 
     // Bytes go to SSH stdin, not the dummy TerminalSession, so we can't

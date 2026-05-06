@@ -1,4 +1,4 @@
-# DroidConnect
+# PocketSecureShell
 
 Android SSH client designed for interacting with Claude Code's TUI.
 

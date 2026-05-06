@@ -1,4 +1,4 @@
-package org.hogel.droidconnect.ssh
+package org.hogel.pocketssh.ssh
 
 import com.trilead.ssh2.Connection
 import com.trilead.ssh2.SCPClient
@@ -121,7 +121,7 @@ class SshSession(
 
     companion object {
         private const val TAG = "SshSession"
-        private const val TMUX_SESSION_NAME = "droidconnect"
+        private const val TMUX_SESSION_NAME = "pocketssh"
     }
 }
 

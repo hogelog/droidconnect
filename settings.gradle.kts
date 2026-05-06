@@ -14,7 +14,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "DroidConnect"
+rootProject.name = "PocketSecureShell"
 
 include(":app")
 include(":terminal-emulator")

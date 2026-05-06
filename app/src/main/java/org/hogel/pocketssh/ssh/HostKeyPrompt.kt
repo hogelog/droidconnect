@@ -1,4 +1,4 @@
-package org.hogel.droidconnect.ssh
+package org.hogel.pocketssh.ssh
 
 /**
  * UI callback invoked by [TofuHostKeyVerifier] on the first connection to a

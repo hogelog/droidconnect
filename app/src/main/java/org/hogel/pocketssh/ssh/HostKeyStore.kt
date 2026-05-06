@@ -1,4 +1,4 @@
-package org.hogel.droidconnect.ssh
+package org.hogel.pocketssh.ssh
 
 import android.content.Context
 import androidx.core.content.edit

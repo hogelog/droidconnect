@@ -1,4 +1,4 @@
-package org.hogel.droidconnect.ssh
+package org.hogel.pocketssh.ssh
 
 import com.trilead.ssh2.ServerHostKeyVerifier
 import java.security.MessageDigest

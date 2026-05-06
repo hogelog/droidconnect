@@ -1,4 +1,4 @@
-package org.hogel.droidconnect.ssh
+package org.hogel.pocketssh.ssh
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -14,8 +14,8 @@ import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
-import org.hogel.droidconnect.R
-import org.hogel.droidconnect.ui.TerminalActivity
+import org.hogel.pocketssh.R
+import org.hogel.pocketssh.ui.TerminalActivity
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
@@ -392,7 +392,7 @@ class SshConnectionService : Service() {
     )
 
     companion object {
-        const val ACTION_STOP = "org.hogel.droidconnect.action.STOP_CONNECTION"
+        const val ACTION_STOP = "org.hogel.pocketssh.action.STOP_CONNECTION"
         private const val CHANNEL_ID = "ssh_connection"
         private const val NOTIFICATION_ID = 1001
         private const val MAX_BUFFER_BYTES = 256 * 1024

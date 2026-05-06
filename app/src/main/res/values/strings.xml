@@ -87,6 +87,15 @@
     <string name="group_summary_always">always matches</string>
     <string name="group_summary_tmux">tmux</string>
 
+    <string name="settings_export">Export settings</string>
+    <string name="settings_import">Import settings</string>
+    <string name="settings_export_copy">Copy</string>
+    <string name="settings_export_copied">Settings copied to clipboard</string>
+    <string name="settings_import_hint">Paste exported JSON</string>
+    <string name="settings_import_apply">Import</string>
+    <string name="settings_import_applied">Settings imported</string>
+    <string name="settings_import_invalid">Invalid JSON: %1$s</string>
+
     <plurals name="shortcuts_summary_format">
         <item quantity="one">%1$d context group</item>
         <item quantity="other">%1$d context groups</item>

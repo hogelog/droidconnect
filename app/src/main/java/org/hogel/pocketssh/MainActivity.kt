@@ -10,14 +10,20 @@ import android.content.SharedPreferences
 import android.os.Bundle
 import android.os.IBinder
 import android.text.InputFilter
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.edit
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import org.hogel.pocketssh.databinding.ActivityMainBinding
+import org.hogel.pocketssh.settings.SettingsBackup
 import org.hogel.pocketssh.shortcuts.ShortcutStore
 import org.hogel.pocketssh.ssh.SshConnectionService
 import org.hogel.pocketssh.ssh.SshKeyManager
@@ -66,6 +72,8 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        // Wire up the toolbar so the overflow menu (export/import settings) shows.
+        setSupportActionBar(binding.toolbar)
 
         binding.textVersion.text = "${BuildConfig.VERSION_NAME}-${BuildConfig.GIT_SHORT_REV}"
 
@@ -104,6 +112,78 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.btnMainDisconnect.setOnClickListener { service?.shutdown() }
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.menu_main, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
+        R.id.action_export_settings -> {
+            // Persist any in-flight edits before snapshotting so the export
+            // matches what the user sees in the form.
+            saveConnectionInput()
+            showExportSettingsDialog()
+            true
+        }
+        R.id.action_import_settings -> {
+            showImportSettingsDialog()
+            true
+        }
+        else -> super.onOptionsItemSelected(item)
+    }
+
+    private fun showExportSettingsDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_export_settings, null)
+        val text = dialogView.findViewById<TextView>(R.id.text_export_json)
+        text.text = SettingsBackup.export(this)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.settings_export)
+            .setView(dialogView)
+            .setPositiveButton(R.string.settings_export_copy) { _, _ ->
+                val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(
+                    ClipData.newPlainText("PocketSecureShell settings", text.text),
+                )
+                Toast.makeText(this, R.string.settings_export_copied, Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showImportSettingsDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_import_settings, null)
+        val layout = dialogView.findViewById<TextInputLayout>(R.id.layout_import_json)
+        val edit = dialogView.findViewById<TextInputEditText>(R.id.edit_import_json)
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.settings_import)
+            .setView(dialogView)
+            .setPositiveButton(R.string.settings_import_apply, null)
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+        // Override the positive button so a parse error keeps the dialog open
+        // and surfaces inline through the TextInputLayout error slot.
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            val json = edit.text?.toString().orEmpty()
+            try {
+                SettingsBackup.import(this, json)
+            } catch (e: Exception) {
+                layout.error = getString(R.string.settings_import_invalid, e.message ?: "")
+                return@setOnClickListener
+            }
+            applyImportedSettings()
+            dialog.dismiss()
+            Toast.makeText(this, R.string.settings_import_applied, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** Reload all on-screen state from prefs after a successful import. */
+    private fun applyImportedSettings() {
+        restoreConnectionInput()
+        binding.textTmuxPrefixValue.text = getString(R.string.tmux_prefix_value, tmuxPrefix)
+        applyConnectionTargetExpanded(binding.containerConnectionTarget.visibility == View.VISIBLE)
+        updateShortcutsSummary()
     }
 
     private fun isSessionActive(): Boolean = when (service?.state) {
@@ -329,12 +409,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
-        private const val PREFS_NAME = "connection"
-        private const val KEY_HOST = "host"
-        private const val KEY_PORT = "port"
-        private const val KEY_USERNAME = "username"
-        private const val KEY_USE_TMUX = "use_tmux"
-        private const val KEY_TMUX_PREFIX = "tmux_prefix"
+        // Connection-prefs schema is also consumed by SettingsBackup, so these
+        // are exposed module-internal rather than activity-private.
+        internal const val PREFS_NAME = "connection"
+        internal const val KEY_HOST = "host"
+        internal const val KEY_PORT = "port"
+        internal const val KEY_USERNAME = "username"
+        internal const val KEY_USE_TMUX = "use_tmux"
+        internal const val KEY_TMUX_PREFIX = "tmux_prefix"
         private const val DEFAULT_TMUX_PREFIX = "b"
     }
 }

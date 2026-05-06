@@ -1024,11 +1024,7 @@ private fun styleModifierButton(button: Button) {
     private fun showSwipeFeedback(direction: Int) {
         val shortcut = activeSwipeShortcut(direction) ?: return
         val preview = previewSwipePayload(shortcut.payload)
-        binding.swipeFeedback.text = if (direction > 0) {
-            getString(R.string.swipe_feedback_right, preview)
-        } else {
-            getString(R.string.swipe_feedback_left, preview)
-        }
+        binding.swipeFeedback.text = getString(R.string.swipe_feedback, shortcut.label, preview)
         binding.swipeFeedback.visibility = View.VISIBLE
     }
 

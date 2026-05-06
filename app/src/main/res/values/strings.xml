@@ -44,8 +44,7 @@
     <string name="notification_text_connected">Connected to %1$s</string>
     <string name="notification_action_disconnect">Disconnect</string>
     <string name="fab_menu">Menu</string>
-    <string name="swipe_feedback_left">← %1$s</string>
-    <string name="swipe_feedback_right">%1$s →</string>
+    <string name="swipe_feedback">%1$s (%2$s)</string>
     <string name="swipe_left">Swipe left</string>
     <string name="swipe_right">Swipe right</string>
     <string name="image_upload_in_progress">Uploading image…</string>

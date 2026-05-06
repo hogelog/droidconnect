@@ -78,7 +78,6 @@ class ShortcutStore(context: Context) {
                 fabItems = listOf(
                     Shortcut("\uD83D\uDDBC", "{IMAGE-PASTE}"), // 🖼 image picker
                     Shortcut("\uD83D\uDCCB", "{COPY}"),        // 📋 selection mode
-                    Shortcut("\uD83D\uDCC4", "{PASTE}"),       // 📄 paste clipboard
                 ),
             ),
             // The "tmux" group replaces the old hardcoded `useTmux` branch in
@@ -89,8 +88,10 @@ class ShortcutStore(context: Context) {
             ContextGroup(
                 name = "tmux",
                 useTmux = true,
-                shortcuts = listOf(
+                fabItems = listOf(
                     Shortcut("➕", "{TMUX-PREFIX}c"),
+                    Shortcut("⬅️", "{TMUX-PREFIX}p"),
+                    Shortcut("➡️", "{TMUX-PREFIX}n"),
                 ),
                 swipeLeft = Shortcut("next", "{TMUX-PREFIX}n"),
                 swipeRight = Shortcut("prev", "{TMUX-PREFIX}p"),

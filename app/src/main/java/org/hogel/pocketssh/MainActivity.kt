@@ -76,6 +76,7 @@ class MainActivity : AppCompatActivity() {
         setupConnectionTargetToggle()
         setupSshKeyToggle()
         setupTmuxPrefixRow()
+        setupTmuxToggle()
         setupShortcutsRow()
 
         updatePublicKeyDisplay()
@@ -275,6 +276,34 @@ class MainActivity : AppCompatActivity() {
         binding.textTmuxPrefixValue.text = getString(R.string.tmux_prefix_value, tmuxPrefix)
         binding.rowTmuxPrefix.setOnClickListener { showTmuxPrefixDialog() }
     }
+
+    private fun setupTmuxToggle() {
+        // Auto-collapse when a connection target was already saved; first-run
+        // users see the section open so the tmux switch and prefix are visible.
+        val hasSavedTarget = !prefs.getString(KEY_HOST, null).isNullOrBlank() &&
+            !prefs.getString(KEY_USERNAME, null).isNullOrBlank()
+        applyTmuxExpanded(!hasSavedTarget)
+        binding.headerTmux.setOnClickListener {
+            val expanded = binding.containerTmux.visibility == View.VISIBLE
+            applyTmuxExpanded(!expanded)
+        }
+    }
+
+    private fun applyTmuxExpanded(expanded: Boolean) {
+        binding.containerTmux.visibility = if (expanded) View.VISIBLE else View.GONE
+        binding.textTmuxSummary.visibility = if (expanded) View.GONE else View.VISIBLE
+        binding.iconTmuxChevron.rotation = if (expanded) 180f else 0f
+        if (!expanded) {
+            binding.textTmuxSummary.text = buildTmuxSummary()
+        }
+    }
+
+    private fun buildTmuxSummary(): String =
+        if (binding.switchUseTmux.isChecked) {
+            getString(R.string.tmux_summary_on, tmuxPrefix)
+        } else {
+            getString(R.string.tmux_summary_off)
+        }
 
     private fun showTmuxPrefixDialog() {
         val edit = EditText(this).apply {

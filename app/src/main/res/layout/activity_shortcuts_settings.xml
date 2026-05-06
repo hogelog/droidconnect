@@ -38,51 +38,8 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:minHeight="40dp"
-                android:gravity="center_vertical"
-                android:text="@string/shortcuts_section_aux"
-                android:textAppearance="?attr/textAppearanceLabelLarge"
-                android:textColor="?attr/colorPrimary"
-                android:letterSpacing="0.05" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
                 android:layout_marginBottom="4dp"
-                android:text="@string/shortcuts_section_aux_hint"
-                android:textAppearance="?attr/textAppearanceBodySmall"
-                android:textColor="?attr/colorOnSurfaceVariant" />
-
-            <LinearLayout
-                android:id="@+id/list_aux"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_add_aux"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="@string/shortcuts_add_button"
-                style="@style/Widget.Material3.Button.TextButton" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
-                android:minHeight="40dp"
-                android:gravity="center_vertical"
-                android:text="@string/shortcuts_section_context"
-                android:textAppearance="?attr/textAppearanceLabelLarge"
-                android:textColor="?attr/colorPrimary"
-                android:letterSpacing="0.05" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="4dp"
-                android:text="@string/shortcuts_section_context_hint"
+                android:text="@string/shortcuts_groups_hint"
                 android:textAppearance="?attr/textAppearanceBodySmall"
                 android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -107,15 +64,6 @@
                 android:layout_marginTop="32dp"
                 android:text="@string/shortcuts_reset_defaults"
                 style="@style/Widget.Material3.Button.TonalButton" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
-                android:text="@string/shortcuts_payload_help"
-                android:textAppearance="?attr/textAppearanceBodySmall"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                android:fontFamily="monospace" />
 
         </LinearLayout>
     </ScrollView>

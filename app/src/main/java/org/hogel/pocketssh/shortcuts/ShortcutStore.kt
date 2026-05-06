@@ -7,128 +7,96 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * SharedPreferences-backed persistence for [Shortcut]s shown above the soft
- * keyboard in the terminal. Two lists are stored:
+ * SharedPreferences-backed persistence for [ContextGroup]s. Each group bundles
+ * a shortcut bar slice, optional swipe payloads, and an optional FAB row;
+ * matching is driven by foreground command name and tmux state. See
+ * [ContextGroup] for the schema and [List.resolve] for the cascade rules.
  *
- *  - the always-on "aux" bar
- *  - context groups, each keyed by one or more lowercased foreground command
- *    names that route from the active tmux pane's OSC title
- *
- * Defaults are hydrated lazily on first read so a fresh install ships with the
- * same shortcut set we used to hardcode in `TerminalActivity`.
+ * The store carries no schema version. Pre-rewrite preference keys (`aux`,
+ * `swipe`) are dropped at first read so a running install rolls into the new
+ * defaults instead of inheriting half-migrated data — see the PR notes for the
+ * rationale.
  */
 class ShortcutStore(context: Context) {
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    fun loadAux(): List<Shortcut> {
-        val raw = prefs.getString(KEY_AUX, null) ?: return defaultAux()
-        return runCatching { parseShortcutArray(JSONArray(raw)) }.getOrElse { defaultAux() }
-    }
-
-    fun saveAux(shortcuts: List<Shortcut>) {
-        prefs.edit { putString(KEY_AUX, encodeShortcutArray(shortcuts).toString()) }
+    init {
+        // Older versions of the app stored the always-on bar (`aux`) and the
+        // tmux swipe payloads (`swipe`) as standalone preferences. Both have
+        // moved into context groups (`always` and `tmux`), so any leftover
+        // values are stale — purge them on first construction.
+        if (prefs.contains(LEGACY_KEY_AUX) || prefs.contains(LEGACY_KEY_SWIPE)) {
+            prefs.edit {
+                remove(LEGACY_KEY_AUX)
+                remove(LEGACY_KEY_SWIPE)
+            }
+        }
     }
 
     fun loadContextGroups(): List<ContextGroup> {
         val raw = prefs.getString(KEY_CONTEXT, null) ?: return defaultContextGroups()
-        return runCatching {
-            val arr = JSONArray(raw)
-            buildList {
-                for (i in 0 until arr.length()) {
-                    val obj = arr.getJSONObject(i)
-                    val contexts = parseStringArray(obj.optJSONArray("contexts"))
-                    val items = parseShortcutArray(obj.optJSONArray("shortcuts") ?: JSONArray())
-                    add(ContextGroup(contexts, items))
-                }
-            }
-        }.getOrElse { defaultContextGroups() }
+        return runCatching { decodeContextGroups(JSONArray(raw)) }
+            .getOrElse { defaultContextGroups() }
     }
 
     fun saveContextGroups(groups: List<ContextGroup>) {
-        val arr = JSONArray()
-        for (group in groups) {
-            val obj = JSONObject()
-            val ctxArr = JSONArray()
-            for (c in group.contexts) ctxArr.put(c)
-            obj.put("contexts", ctxArr)
-            obj.put("shortcuts", encodeShortcutArray(group.shortcuts))
-            arr.put(obj)
-        }
-        prefs.edit { putString(KEY_CONTEXT, arr.toString()) }
+        prefs.edit { putString(KEY_CONTEXT, encodeContextGroups(groups).toString()) }
     }
 
-    fun loadSwipe(): SwipeShortcuts {
-        val raw = prefs.getString(KEY_SWIPE, null) ?: return defaultSwipe()
-        return runCatching {
-            val obj = JSONObject(raw)
-            SwipeShortcuts(
-                left = obj.optString("left"),
-                right = obj.optString("right"),
-            )
-        }.getOrElse { defaultSwipe() }
-    }
-
-    fun saveSwipe(swipe: SwipeShortcuts) {
-        val obj = JSONObject()
-            .put("left", swipe.left)
-            .put("right", swipe.right)
-        prefs.edit { putString(KEY_SWIPE, obj.toString()) }
-    }
-
-    /** Drop all stored lists so the next read returns the bundled defaults. */
+    /** Drop all stored groups so the next read returns the bundled defaults. */
     fun resetToDefaults() {
-        prefs.edit {
-            remove(KEY_AUX)
-            remove(KEY_CONTEXT)
-            remove(KEY_SWIPE)
-        }
-    }
-
-    /**
-     * Resolve the shortcut set for a given foreground command name. Matching is
-     * case-insensitive and exact against any of a group's [ContextGroup.contexts]
-     * entries; first match wins.
-     */
-    fun shortcutsForContext(app: String?): List<Shortcut> {
-        val key = app?.trim()?.lowercase().orEmpty()
-        if (key.isEmpty()) return emptyList()
-        for (group in loadContextGroups()) {
-            if (group.contexts.any { it.equals(key, ignoreCase = true) }) {
-                return group.shortcuts
-            }
-        }
-        return emptyList()
+        prefs.edit { remove(KEY_CONTEXT) }
     }
 
     companion object {
         private const val PREFS_NAME = "shortcuts"
-        private const val KEY_AUX = "aux"
         private const val KEY_CONTEXT = "context_groups"
-        private const val KEY_SWIPE = "swipe"
 
-        fun defaultSwipe(): SwipeShortcuts = SwipeShortcuts(
-            // Left = next window, right = previous (matches the swipe direction
-            // intuition from carousel UIs). `{TMUX-PREFIX}` expands at runtime
-            // so changing the prefix in settings keeps the gesture working.
-            left = "{TMUX-PREFIX}n",
-            right = "{TMUX-PREFIX}p",
-        )
-
-        fun defaultAux(): List<Shortcut> = listOf(
-            Shortcut("/", "/"),
-            Shortcut("TAB", "{TAB}"),
-            Shortcut("^L", "^L"),
-            Shortcut("^R", "^R"),
-            Shortcut("↓", "{DOWN}"),
-            Shortcut("↑", "{UP}"),
-            Shortcut("^C", "^C"),
-            Shortcut("^D", "^D"),
-        )
+        // Pre-rewrite keys, kept here only so the init block can purge them.
+        private const val LEGACY_KEY_AUX = "aux"
+        private const val LEGACY_KEY_SWIPE = "swipe"
 
         fun defaultContextGroups(): List<ContextGroup> = listOf(
+            // The "always" group replaces the old standalone aux bar plus the
+            // hardcoded clipboard FAB items. Empty contexts + null useTmux
+            // means it matches every state at specifity 0, so it acts as the
+            // baseline that everything else stacks on top of.
             ContextGroup(
+                name = "always",
+                shortcuts = listOf(
+                    Shortcut("/", "/"),
+                    Shortcut("TAB", "{TAB}"),
+                    Shortcut("^L", "^L"),
+                    Shortcut("^R", "^R"),
+                    Shortcut("↓", "{DOWN}"),
+                    Shortcut("↑", "{UP}"),
+                    Shortcut("^C", "^C"),
+                    Shortcut("^D", "^D"),
+                ),
+                fabItems = listOf(
+                    Shortcut("\uD83D\uDDBC", "{IMAGE-PASTE}"), // 🖼 image picker
+                    Shortcut("\uD83D\uDCCB", "{COPY}"),        // 📋 selection mode
+                    Shortcut("\uD83D\uDCC4", "{PASTE}"),       // 📄 paste clipboard
+                ),
+            ),
+            // The "tmux" group replaces the old hardcoded `useTmux` branch in
+            // setupFabSpeedDial and the global swipe payloads. Left = next /
+            // right = previous matches the old defaults, which deliberately
+            // mirror the carousel-style "swipe forward / swipe back" intuition
+            // rather than tmux's own n/p letters.
+            ContextGroup(
+                name = "tmux",
+                useTmux = true,
+                shortcuts = listOf(
+                    Shortcut("➕", "{TMUX-PREFIX}c"),
+                ),
+                swipeLeft = Shortcut("next", "{TMUX-PREFIX}n"),
+                swipeRight = Shortcut("prev", "{TMUX-PREFIX}p"),
+            ),
+            ContextGroup(
+                name = "claude",
                 contexts = listOf("claude"),
                 shortcuts = listOf(
                     Shortcut("ESC", "\\e"),
@@ -138,6 +106,7 @@ class ShortcutStore(context: Context) {
                 ),
             ),
             ContextGroup(
+                name = "shell",
                 contexts = listOf("bash", "zsh", "sh", "fish"),
                 shortcuts = listOf(
                     Shortcut("claude", "claude"),
@@ -146,22 +115,65 @@ class ShortcutStore(context: Context) {
             ),
         )
 
-        private fun parseShortcutArray(arr: JSONArray): List<Shortcut> = buildList {
+        private fun encodeContextGroups(groups: List<ContextGroup>): JSONArray {
+            val arr = JSONArray()
+            for (g in groups) arr.put(encodeContextGroup(g))
+            return arr
+        }
+
+        private fun encodeContextGroup(group: ContextGroup): JSONObject {
+            val obj = JSONObject()
+            obj.put("name", group.name)
+            val ctxArr = JSONArray()
+            for (c in group.contexts) ctxArr.put(c)
+            obj.put("contexts", ctxArr)
+            // useTmux is omitted when null so the JSON stays minimal — `false`
+            // is never written because we don't model "only outside tmux".
+            if (group.useTmux == true) obj.put("useTmux", true)
+            obj.put("shortcuts", encodeShortcutArray(group.shortcuts))
+            group.swipeLeft?.let { obj.put("swipeLeft", encodeShortcut(it)) }
+            group.swipeRight?.let { obj.put("swipeRight", encodeShortcut(it)) }
+            obj.put("fabItems", encodeShortcutArray(group.fabItems))
+            return obj
+        }
+
+        private fun decodeContextGroups(arr: JSONArray): List<ContextGroup> = buildList {
             for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-                val label = obj.optString("label").orEmpty()
-                val payload = obj.optString("payload").orEmpty()
-                if (label.isNotEmpty()) add(Shortcut(label, payload))
+                add(decodeContextGroup(arr.getJSONObject(i)))
             }
         }
 
+        private fun decodeContextGroup(obj: JSONObject): ContextGroup {
+            val name = obj.optString("name").orEmpty()
+            val contexts = parseStringArray(obj.optJSONArray("contexts"))
+            // Treat any non-true value (missing, null, false) as "don't care".
+            val useTmux = if (obj.optBoolean("useTmux", false)) true else null
+            val shortcuts = parseShortcutArray(obj.optJSONArray("shortcuts") ?: JSONArray())
+            val swipeLeft = obj.optJSONObject("swipeLeft")?.let { decodeShortcut(it) }
+            val swipeRight = obj.optJSONObject("swipeRight")?.let { decodeShortcut(it) }
+            val fabItems = parseShortcutArray(obj.optJSONArray("fabItems") ?: JSONArray())
+            return ContextGroup(name, contexts, useTmux, shortcuts, swipeLeft, swipeRight, fabItems)
+        }
+
+        private fun parseShortcutArray(arr: JSONArray): List<Shortcut> = buildList {
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                val s = decodeShortcut(obj)
+                if (s.label.isNotEmpty()) add(s)
+            }
+        }
+
+        private fun decodeShortcut(obj: JSONObject): Shortcut =
+            Shortcut(obj.optString("label").orEmpty(), obj.optString("payload").orEmpty())
+
         private fun encodeShortcutArray(shortcuts: List<Shortcut>): JSONArray {
             val arr = JSONArray()
-            for (s in shortcuts) {
-                arr.put(JSONObject().put("label", s.label).put("payload", s.payload))
-            }
+            for (s in shortcuts) arr.put(encodeShortcut(s))
             return arr
         }
+
+        private fun encodeShortcut(s: Shortcut): JSONObject =
+            JSONObject().put("label", s.label).put("payload", s.payload)
 
         private fun parseStringArray(arr: JSONArray?): List<String> = buildList {
             if (arr == null) return@buildList

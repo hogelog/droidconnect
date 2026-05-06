@@ -24,6 +24,8 @@ import android.view.View
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
+import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.activity.result.PickVisualMediaRequest
@@ -224,7 +226,7 @@ class TerminalActivity : AppCompatActivity() {
     // (shortcut bar, FAB, swipe gesture handler) so they share a single
     // source of truth.
     private var resolved: ResolvedContext = ResolvedContext(
-        shortcuts = emptyList(),
+        shortcutRows = emptyList(),
         swipeLeft = null,
         swipeRight = null,
         fabRows = emptyList(),
@@ -383,29 +385,67 @@ class TerminalActivity : AppCompatActivity() {
     private fun applyContext(app: String?) {
         lastAppContext = app
         resolved = shortcutStore.loadContextGroups().resolve(useTmux, app)
-        rebuildShortcutBar(resolved.shortcuts)
+        rebuildShortcutBar(resolved.shortcutRows)
         rebuildFab(resolved.fabRows)
     }
 
     /**
-     * Rebuild the merged shortcut bar. Ctrl is the only fixed entry — it's a
-     * sticky modifier toggle, not a payload-driven shortcut, so it can't be
-     * expressed inside a [ContextGroup]. Everything to its right comes from
-     * the resolved cascade (specifity high → low, no dedup).
+     * Rebuild the shortcut bar. Each contributing [ContextGroup] becomes one
+     * horizontally-scrolling row, stacked specifity high → low so the
+     * "always" baseline sits closest to the keyboard. Ctrl is appended to
+     * the bottom-most row as a sticky modifier toggle; it can't be expressed
+     * inside a [ContextGroup] because it has no payload. When no group
+     * contributes shortcuts the bar still renders a Ctrl-only baseline row.
      */
-    private fun rebuildShortcutBar(shortcuts: List<Shortcut>) {
+    private fun rebuildShortcutBar(rows: List<List<Shortcut>>) {
         val bar = binding.shortcutBar
         bar.removeAllViews()
 
-        ctrlButton = makeAuxButton("Ctrl") { setCtrlSticky(!stickyCtrl) }
-            .also { styleModifierButton(it); bar.addView(it, auxButtonLayoutParams()) }
+        val displayRows = if (rows.isEmpty()) listOf(emptyList()) else rows
+        val lastIndex = displayRows.lastIndex
 
-        for (shortcut in shortcuts) {
-            bar.addView(
-                makeAuxButton(shortcut.label, runShortcutAction(shortcut.payload)),
-                auxButtonLayoutParams(),
+        for ((idx, row) in displayRows.withIndex()) {
+            val rowLayout = addShortcutRow()
+            if (idx == lastIndex) {
+                ctrlButton = makeAuxButton("Ctrl") { setCtrlSticky(!stickyCtrl) }
+                    .also { styleModifierButton(it); rowLayout.addView(it, auxButtonLayoutParams()) }
+            }
+            for (shortcut in row) {
+                rowLayout.addView(
+                    makeAuxButton(shortcut.label, runShortcutAction(shortcut.payload)),
+                    auxButtonLayoutParams(),
+                )
+            }
+        }
+    }
+
+    /**
+     * Append a horizontally-scrollable row to [binding.shortcutBar] and
+     * return the inner [LinearLayout] for caller-supplied buttons. Per-row
+     * scrolling keeps an over-stuffed group from forcing the whole bar to
+     * scroll sideways and stranding higher-priority rows.
+     */
+    private fun addShortcutRow(): LinearLayout {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(dpToPx(4), 0, dpToPx(4), 0)
+        }
+        val scroll = HorizontalScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            )
+            isHorizontalScrollBarEnabled = false
+            addView(
+                row,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                ),
             )
         }
+        binding.shortcutBar.addView(scroll)
+        return row
     }
 
     /**

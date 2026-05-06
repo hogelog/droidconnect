@@ -20,9 +20,9 @@ data class Shortcut(val label: String, val payload: String)
  * `null` (the default) means tmux state is irrelevant. `false` is intentionally
  * excluded from the data model — "only outside tmux" was judged not worth the
  * extra ambiguity in matching rules.
- * @property shortcuts Buttons rendered on the keyboard shortcut bar. All
- * matching groups' lists are concatenated (specifity high → low) into a single
- * bar.
+ * @property shortcuts Buttons rendered as one row on the keyboard shortcut
+ * bar. Each matching group with a non-empty list contributes its own row;
+ * rows are stacked specifity high → low (mirrors `fabItems`).
  * @property swipeLeft Optional payload bound to a left swipe on the terminal.
  * Only the highest-specifity matching group's value is used.
  * @property swipeRight Optional payload bound to a right swipe on the terminal.
@@ -65,7 +65,8 @@ data class ContextGroup(
  * coexist without one blanket-overwriting the other.
  */
 data class ResolvedContext(
-    val shortcuts: List<Shortcut>,
+    /** Each inner list renders as one row on the shortcut bar. */
+    val shortcutRows: List<List<Shortcut>>,
     val swipeLeft: Shortcut?,
     val swipeRight: Shortcut?,
     /** Each inner list renders as one row in the FAB menu. */
@@ -74,15 +75,15 @@ data class ResolvedContext(
 
 /**
  * Run the per-feature cascade. Single-value features (swipes) take the
- * specifity-max non-null entry; the shortcut bar concatenates every group's
- * list; the FAB stacks each contributing group as its own row.
+ * specifity-max non-null entry; the shortcut bar and the FAB both stack one
+ * row per contributing group, ordered specifity high → low.
  */
 fun List<ContextGroup>.resolve(inTmux: Boolean, currentContext: String?): ResolvedContext {
     val matches = filter { it.matches(inTmux, currentContext) }
         .sortedByDescending { it.specifity }
-    val shortcuts = matches.flatMap { it.shortcuts }
+    val shortcutRows = matches.filter { it.shortcuts.isNotEmpty() }.map { it.shortcuts }
     val swipeLeft = matches.firstOrNull { it.swipeLeft != null }?.swipeLeft
     val swipeRight = matches.firstOrNull { it.swipeRight != null }?.swipeRight
     val fabRows = matches.filter { it.fabItems.isNotEmpty() }.map { it.fabItems }
-    return ResolvedContext(shortcuts, swipeLeft, swipeRight, fabRows)
+    return ResolvedContext(shortcutRows, swipeLeft, swipeRight, fabRows)
 }

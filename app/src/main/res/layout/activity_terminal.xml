@@ -80,21 +80,12 @@
 
         </FrameLayout>
 
-        <HorizontalScrollView
-            android:id="@+id/shortcut_bar_scroll"
+        <LinearLayout
+            android:id="@+id/shortcut_bar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="?attr/colorSurfaceVariant"
-            android:scrollbars="none">
-
-            <LinearLayout
-                android:id="@+id/shortcut_bar"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:paddingHorizontal="4dp" />
-
-        </HorizontalScrollView>
+            android:orientation="vertical" />
 
     </LinearLayout>
 

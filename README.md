@@ -22,7 +22,6 @@ Android SSH client tuned for terminal-heavy workflows like Claude Code's TUI.
 - JDK 17
 - Android SDK with `compileSdk` 36 (`minSdk` 34, `targetSdk` 36)
 - Android NDK 27.0.12077973
-- Git (for fetching submodules)
 
 ### Steps
 
@@ -32,12 +31,6 @@ git submodule update --init --recursive
 ```
 
 The debug APK will be produced at `app/build/outputs/apk/debug/app-debug.apk`.
-
-## Release
-
-Pushing a `vMAJOR.MINOR.PATCH` tag triggers the release workflow, which builds a
-signed APK and AAB and attaches both to a GitHub release. The AAB
-(`pocketsecureshell-vX.Y.Z.aab`) is the artifact uploaded to Google Play.
 
 ## License
 

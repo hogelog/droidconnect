@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
+  <rect width="1024" height="500" fill="#006E1C"/>
+  <g transform="translate(80 160) scale(1.8)" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M40 40 L58 54 L40 68"/>
+    <path d="M52 72 L70 72"/>
+  </g>
+  <text x="290" y="260" font-family="DejaVu Sans" font-weight="bold" font-size="60" fill="#FFFFFF">PocketSecureShell</text>
+  <text x="292" y="305" font-family="DejaVu Sans" font-size="26" fill="#CFE9D5">SSH client tuned for terminal-heavy workflows</text>
+</svg>

@@ -574,7 +574,7 @@ class TerminalActivity : AppCompatActivity() {
 
     /**
      * Upload the picked image to the remote host via SCP and, on success,
-     * type its `@/tmp/...` path into the SSH stdin so the user can submit
+     * type its `/tmp/...` path into the SSH stdin so the user can submit
      * it to Claude Code by pressing Enter.
      */
     private fun onImagePicked(uri: Uri) {
@@ -610,7 +610,7 @@ class TerminalActivity : AppCompatActivity() {
                 ).show()
                 return@uploadBytes
             }
-            val pathRef = "@$REMOTE_TMP_DIR/$filename "
+            val pathRef = "$REMOTE_TMP_DIR/$filename "
             writeToSsh(pathRef.toByteArray(Charsets.UTF_8))
         }
     }

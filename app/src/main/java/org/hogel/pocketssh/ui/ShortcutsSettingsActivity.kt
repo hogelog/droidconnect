@@ -10,8 +10,10 @@ import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
+import android.widget.Toast
 import org.hogel.pocketssh.R
 import org.hogel.pocketssh.databinding.ActivityShortcutsSettingsBinding
+import org.hogel.pocketssh.learning.BigramStore
 import org.hogel.pocketssh.shortcuts.ContextGroup
 import org.hogel.pocketssh.shortcuts.ShortcutStore
 
@@ -57,6 +59,22 @@ class ShortcutsSettingsActivity : AppCompatActivity() {
                     store.resetToDefaults()
                     reload()
                     renderContextGroups()
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+        }
+
+        binding.btnClearLearned.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.shortcuts_clear_learned)
+                .setMessage(R.string.shortcuts_clear_learned_message)
+                .setPositiveButton(R.string.shortcuts_clear_learned_confirm) { _, _ ->
+                    BigramStore(this).clear()
+                    Toast.makeText(
+                        this,
+                        R.string.shortcuts_clear_learned_done,
+                        Toast.LENGTH_SHORT,
+                    ).show()
                 }
                 .setNegativeButton(android.R.string.cancel, null)
                 .show()

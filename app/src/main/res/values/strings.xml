@@ -73,6 +73,13 @@
     <string name="shortcuts_reset_defaults">Reset to defaults</string>
     <string name="shortcuts_reset_defaults_message">Replace all groups with the bundled defaults? Your current entries will be lost.</string>
     <string name="shortcuts_reset_defaults_confirm">Reset</string>
+    <string name="shortcuts_clear_learned">Clear learned suggestions</string>
+    <string name="shortcuts_clear_learned_message">Wipe the bigram counts that drive the dynamic suggestion row? The shortcut bar will start fresh and re-learn as you type.</string>
+    <string name="shortcuts_clear_learned_confirm">Clear</string>
+    <string name="shortcuts_clear_learned_done">Learned suggestions cleared</string>
+    <string name="learned_delete_title">Delete suggestion</string>
+    <string name="learned_delete_message">Remove \"%1$s\" from the learned suggestions for this context?</string>
+    <string name="learned_delete_confirm">Delete</string>
     <string name="shortcuts_move_up">Move up</string>
     <string name="shortcuts_move_down">Move down</string>
     <string name="shortcuts_delete">Delete</string>

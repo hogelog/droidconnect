@@ -43,6 +43,8 @@ import java.util.concurrent.Executors
 import java.util.concurrent.SynchronousQueue
 import org.hogel.pocketssh.R
 import org.hogel.pocketssh.databinding.ActivityTerminalBinding
+import org.hogel.pocketssh.learning.BigramStore
+import org.hogel.pocketssh.learning.BigramTracker
 import org.hogel.pocketssh.shortcuts.ResolvedContext
 import org.hogel.pocketssh.shortcuts.Shortcut
 import org.hogel.pocketssh.shortcuts.ShortcutAction
@@ -191,6 +193,15 @@ class TerminalActivity : AppCompatActivity() {
     private var fontSizePx = DEFAULT_FONT_SIZE_PX
     private val terminalPrefs by lazy { getSharedPreferences(PREFS_TERMINAL, Context.MODE_PRIVATE) }
     private val shortcutStore by lazy { ShortcutStore(this) }
+    private val bigramStore by lazy { BigramStore(this) }
+    private val bigramTracker by lazy {
+        BigramTracker(bigramStore) {
+            // Tracker callbacks may arrive on the SSH write thread (whatever
+            // thread `writeToSsh` runs on). Bounce to the UI thread before
+            // touching views.
+            runOnUiThread { rebuildShortcutBar() }
+        }
+    }
     // Cached for re-applying after returning from the shortcuts settings screen
     // without waiting for tmux to re-emit the title OSC.
     private var lastAppContext: String? = null
@@ -384,39 +395,82 @@ class TerminalActivity : AppCompatActivity() {
      */
     private fun applyContext(app: String?) {
         lastAppContext = app
+        bigramTracker.setContext(app)
         resolved = shortcutStore.loadContextGroups().resolve(useTmux, app)
-        rebuildShortcutBar(resolved.shortcutRows)
+        rebuildShortcutBar()
         rebuildFab(resolved.fabRows)
     }
 
     /**
-     * Rebuild the shortcut bar. Each contributing [ContextGroup] becomes one
-     * horizontally-scrolling row, stacked specifity high → low so the
-     * "always" baseline sits closest to the keyboard. Ctrl is appended to
-     * the bottom-most row as a sticky modifier toggle; it can't be expressed
-     * inside a [ContextGroup] because it has no payload. When no group
-     * contributes shortcuts the bar still renders a Ctrl-only baseline row.
+     * Rebuild the shortcut bar. The bottom row flattens every matching
+     * [ContextGroup] into a single horizontally-scrolling line, ordered
+     * specifity high → low so the active foreground command's deck sits
+     * left of the always-on `/`–`^D` slice. The learned-suggestions row
+     * stays above it when bigram counts yield candidates for the active
+     * `(context, prev)`. Ctrl is the left-most button on the bottom row as
+     * a sticky modifier toggle; it can't be expressed inside a
+     * [ContextGroup] because it has no payload.
      */
-    private fun rebuildShortcutBar(rows: List<List<Shortcut>>) {
+    private fun rebuildShortcutBar() {
         val bar = binding.shortcutBar
         bar.removeAllViews()
 
-        val displayRows = if (rows.isEmpty()) listOf(emptyList()) else rows
-        val lastIndex = displayRows.lastIndex
-
-        for ((idx, row) in displayRows.withIndex()) {
-            val rowLayout = addShortcutRow()
-            if (idx == lastIndex) {
-                ctrlButton = makeAuxButton("Ctrl") { setCtrlSticky(!stickyCtrl) }
-                    .also { styleModifierButton(it); rowLayout.addView(it, auxButtonLayoutParams()) }
-            }
-            for (shortcut in row) {
-                rowLayout.addView(
-                    makeAuxButton(shortcut.label, runShortcutAction(shortcut.payload)),
-                    auxButtonLayoutParams(),
-                )
+        val learnedTokens = bigramStore.topNext(
+            bigramTracker.currentContext(),
+            bigramTracker.currentPrev(),
+            LEARNED_SUGGESTION_LIMIT,
+        )
+        if (learnedTokens.isNotEmpty()) {
+            val learnedLayout = addShortcutRow()
+            for (token in learnedTokens) {
+                learnedLayout.addView(makeLearnedButton(token), auxButtonLayoutParams())
             }
         }
+
+        val mergedRow: List<Shortcut> = resolved.shortcutRows.flatten()
+        val rowLayout = addShortcutRow()
+        ctrlButton = makeAuxButton("Ctrl") { setCtrlSticky(!stickyCtrl) }
+            .also { styleModifierButton(it); rowLayout.addView(it, auxButtonLayoutParams()) }
+        for (shortcut in mergedRow) {
+            rowLayout.addView(
+                makeAuxButton(shortcut.label, runShortcutAction(shortcut.payload)),
+                auxButtonLayoutParams(),
+            )
+        }
+    }
+
+    /**
+     * A learned candidate button. Tap sends `<token> ` (or a literal CR for
+     * the `<ENTER>` pseudo token) so the chain rolls into the next round of
+     * suggestions; long-press confirms and deletes the (context, prev, token)
+     * bigram so a stale or unwanted candidate can be evicted in place.
+     */
+    private fun makeLearnedButton(token: String): Button {
+        val (label, payload) = if (token == BigramStore.ENTER) {
+            "⏎" to "\\r"
+        } else {
+            token to "$token "
+        }
+        val button = makeAuxButton(label, runShortcutAction(payload))
+        button.setOnLongClickListener {
+            confirmDeleteLearnedCandidate(label, token)
+            true
+        }
+        return button
+    }
+
+    private fun confirmDeleteLearnedCandidate(label: String, token: String) {
+        val context = bigramTracker.currentContext()
+        val prev = bigramTracker.currentPrev()
+        AlertDialog.Builder(this)
+            .setTitle(R.string.learned_delete_title)
+            .setMessage(getString(R.string.learned_delete_message, label))
+            .setPositiveButton(R.string.learned_delete_confirm) { _, _ ->
+                bigramStore.delete(context, prev, token)
+                rebuildShortcutBar()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     /**
@@ -1103,6 +1157,7 @@ private fun styleModifierButton(button: Button) {
 
     private fun writeToSsh(data: ByteArray) {
         service?.writeToSsh(data)
+        bigramTracker.ingestSend(data)
     }
 
     private fun copySelectedTextToClipboard(text: String?) {
@@ -1375,5 +1430,10 @@ private fun styleModifierButton(button: Button) {
         // Picked images are uploaded under /tmp on the remote host so they
         // are wiped automatically on reboot — no explicit cleanup is needed.
         private const val REMOTE_TMP_DIR = "/tmp"
+
+        // Number of learned candidates to render in the suggestions row. Sized
+        // a touch under the always row's eight buttons so the learned row
+        // visually reads as "extra" rather than competing for the same space.
+        private const val LEARNED_SUGGESTION_LIMIT = 6
     }
 }

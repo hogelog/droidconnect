@@ -1,4 +1,4 @@
-# PocketSecureShell
+# <img src="docs/assets/app-icon.svg" width="32" align="top"> PocketSecureShell
 
 Android SSH client tuned for terminal-heavy workflows like Claude Code's TUI.
 

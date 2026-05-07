@@ -66,7 +66,6 @@ class ShortcutStore(context: Context) {
             ContextGroup(
                 name = "always",
                 shortcuts = listOf(
-                    Shortcut("/", "/"),
                     Shortcut("TAB", "{TAB}"),
                     Shortcut("^L", "^L"),
                     Shortcut("^R", "^R"),
@@ -95,22 +94,21 @@ class ShortcutStore(context: Context) {
                 swipeLeft = Shortcut("prev", "{TMUX-PREFIX}p"),
                 swipeRight = Shortcut("next", "{TMUX-PREFIX}n"),
             ),
+            // The `claude` deck is intentionally pared down to control-byte
+            // payloads only — ESC, Shift-Tab, ^J. Plain text payloads like
+            // `/clear` and the old `shell` deck (`claude`, `cd `) were
+            // dropped: those are exactly the kind of token the per-context
+            // bigram tracker now surfaces from real usage, so a hardcoded
+            // default would just compete with live counts. Control sequences
+            // can't be observed by the tracker (it poisons the line on the
+            // first byte `< 0x20`), so they have to stay as fixed buttons.
             ContextGroup(
                 name = "claude",
                 contexts = listOf("claude"),
                 shortcuts = listOf(
                     Shortcut("ESC", "\\e"),
-                    Shortcut("/clear", "/clear"),
                     Shortcut("⇧Tab", "{S-TAB}"),
                     Shortcut("^J", "^J"),
-                ),
-            ),
-            ContextGroup(
-                name = "shell",
-                contexts = listOf("bash", "zsh", "sh", "fish"),
-                shortcuts = listOf(
-                    Shortcut("claude", "claude"),
-                    Shortcut("cd ", "cd "),
                 ),
             ),
         )

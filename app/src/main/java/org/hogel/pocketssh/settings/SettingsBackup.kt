@@ -3,6 +3,7 @@ package org.hogel.pocketssh.settings
 import android.content.Context
 import androidx.core.content.edit
 import org.hogel.pocketssh.MainActivity
+import org.hogel.pocketssh.learning.BigramStore
 import org.hogel.pocketssh.shortcuts.ShortcutStore
 import org.json.JSONArray
 import org.json.JSONObject
@@ -10,8 +11,9 @@ import org.json.JSONObject
 /**
  * Serializes user-configurable settings to a single JSON document so users can
  * transfer them between devices. The bundle covers connection-target defaults
- * (host/port/username, tmux toggle and prefix) and the entire shortcut store
- * (context groups, including their swipe and FAB payloads).
+ * (host/port/username, tmux toggle and prefix), the entire shortcut store
+ * (context groups, including their swipe and FAB payloads), and the learned
+ * bigram counts that drive the dynamic suggestion row.
  *
  * Excluded:
  *  - SSH private key — keystore-bound (TEE), can't leave the device. Users
@@ -40,11 +42,13 @@ object SettingsBackup {
             prefs.getString(MainActivity.KEY_TMUX_PREFIX, null)?.let { put("tmux_prefix", it) }
         }
         val groupsJson = ShortcutStore.encodeContextGroups(store.loadContextGroups())
+        val bigramsJson = encodeBigrams(BigramStore(context).snapshot())
 
         return JSONObject()
             .put("version", VERSION)
             .put("connection", connectionJson)
             .put("context_groups", groupsJson)
+            .put("bigrams", bigramsJson)
             .toString(2)
     }
 
@@ -60,8 +64,10 @@ object SettingsBackup {
 
         val connectionObj = root.optJSONObject("connection")
         val groupsArr: JSONArray? = root.optJSONArray("context_groups")
+        val bigramsArr: JSONArray? = root.optJSONArray("bigrams")
         // Decode upfront so a bad payload throws before we touch persisted state.
         val groups = groupsArr?.let { ShortcutStore.decodeContextGroups(it) }
+        val bigrams = bigramsArr?.let { decodeBigrams(it) }
 
         if (connectionObj != null) {
             val prefs = context.getSharedPreferences(
@@ -87,6 +93,37 @@ object SettingsBackup {
         }
         if (groups != null) {
             ShortcutStore(context).saveContextGroups(groups)
+        }
+        if (bigrams != null) {
+            BigramStore(context).replaceAll(bigrams)
+        }
+    }
+
+    private fun encodeBigrams(rows: List<BigramStore.Bigram>): JSONArray {
+        val arr = JSONArray()
+        for (r in rows) {
+            arr.put(
+                JSONObject()
+                    .put("context", r.context)
+                    .put("prev", r.prev)
+                    .put("next", r.next)
+                    .put("count", r.count),
+            )
+        }
+        return arr
+    }
+
+    private fun decodeBigrams(arr: JSONArray): List<BigramStore.Bigram> = buildList {
+        for (i in 0 until arr.length()) {
+            val obj = arr.getJSONObject(i)
+            add(
+                BigramStore.Bigram(
+                    context = obj.getString("context"),
+                    prev = obj.getString("prev"),
+                    next = obj.getString("next"),
+                    count = obj.getInt("count"),
+                ),
+            )
         }
     }
 }

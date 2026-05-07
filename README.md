@@ -11,6 +11,7 @@ Android SSH client tuned for terminal-heavy workflows like Claude Code's TUI.
 - Terminal emulation via [Termux terminal-emulator/terminal-view](https://github.com/termux/termux-app)
 - xterm-256color compatible rendering
 - Configurable shortcut bars (always-on and per-foreground-command)
+- Japanese IME input
 
 ## Build
 

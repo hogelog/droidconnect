@@ -1,6 +1,8 @@
-# PocketSecureShell
+# <img src="docs/assets/app-icon.svg" width="32" align="top"> PocketSecureShell
 
 Android SSH client tuned for terminal-heavy workflows like Claude Code's TUI.
+
+<img src="docs/assets/screenshot-claude-code.png" alt="Running Claude Code over SSH on PocketSecureShell" width="320">
 
 ## Features
 

@@ -22,7 +22,6 @@ Android SSH client tuned for terminal-heavy workflows like Claude Code's TUI.
 - JDK 17
 - Android SDK with `compileSdk` 36 (`minSdk` 34, `targetSdk` 36)
 - Android NDK 27.0.12077973
-- Git (for fetching submodules)
 
 ### Steps
 

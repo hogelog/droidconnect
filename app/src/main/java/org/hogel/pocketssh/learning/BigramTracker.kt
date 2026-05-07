@@ -81,13 +81,12 @@ class BigramTracker(
                     if (!poisoned) {
                         // Treat line termination as a bigram successor so
                         // frequent end-of-line tokens (e.g. `status` after
-                        // `git`) eventually surface a one-tap Enter button in
-                        // the suggestion row.
+                        // `git`) — and bare Enter on an empty line, recorded
+                        // as `(<BOL>, <ENTER>)` — eventually surface a
+                        // one-tap Enter button in the suggestion row.
                         val terminator = tail ?: prev
-                        if (terminator != BigramStore.BOL) {
-                            store.record(context, terminator, BigramStore.ENTER)
-                            shouldNotify = true
-                        }
+                        store.record(context, terminator, BigramStore.ENTER)
+                        shouldNotify = true
                     }
                     if (prev != BigramStore.BOL) shouldNotify = true
                     prev = BigramStore.BOL

@@ -2,6 +2,8 @@
 
 Android SSH client tuned for terminal-heavy workflows like Claude Code's TUI.
 
+<img src="docs/assets/screenshot-claude-code.png" alt="Running Claude Code over SSH on PocketSecureShell" width="320">
+
 ## Features
 
 - ECDSA P-256 key pair generated inside the Android Keystore (hardware-backed when available); the private key is non-exportable — it cannot be retrieved off the device by anyone, including the user

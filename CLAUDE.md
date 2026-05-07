@@ -36,6 +36,21 @@ git submodule update --init --recursive
 
 The submodule is pinned to termux-app v0.118.3.
 
+## Telemetry
+
+Sentry is wired up only for crash reporting (auto-init via manifest meta-data). User-controlled
+values must never reach Sentry events or breadcrumbs:
+
+- Connection target (host, port, username) and SSH key material (public key, fingerprints, host
+  key bytes, signatures) are off-limits — do not pass them to `Sentry.captureException` /
+  `captureMessage` / `addBreadcrumb` / `setUser` / `setContext` / `setTag` / `setExtra`, and do
+  not interpolate them into exception messages or `Log.*` calls that may propagate uncaught.
+- Catch and log SSH-layer exceptions where they originate so they never reach the global
+  `UncaughtExceptionHandler` (where their messages would be captured verbatim — e.g.
+  `UnknownHostException` carries the hostname).
+- Do not enable `attachViewHierarchy`, `attachScreenshot`, or session-replay; the connection
+  screen's `EditText`s and the terminal output would otherwise leak.
+
 ## License
 
 GPLv3 (due to Termux terminal-emulator/terminal-view dependency)

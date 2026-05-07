@@ -49,10 +49,10 @@ jobs:
             sed -i "/apply plugin: 'maven-publish'/d; /task sourceJar/,/^}/d; /afterEvaluate/,/^}/d" "$f"
           done
 
-      - name: Build debug APK
+      - name: Build debug APK and unsigned release AAB
         env:
           SENTRY_DSN: ${{ vars.SENTRY_DSN }}
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleDebug bundleRelease
 
       - name: Publish main debug prerelease
         env:

@@ -30,6 +30,12 @@ git submodule update --init --recursive
 
 The debug APK will be produced at `app/build/outputs/apk/debug/app-debug.apk`.
 
+## Release
+
+Pushing a `vMAJOR.MINOR.PATCH` tag triggers the release workflow, which builds a
+signed APK and AAB and attaches both to a GitHub release. The AAB
+(`pocketsecureshell-vX.Y.Z.aab`) is the artifact uploaded to Google Play.
+
 ## License
 
 GPLv3 - See [LICENSE](LICENSE)

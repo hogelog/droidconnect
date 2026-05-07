@@ -137,18 +137,18 @@ sentry {
 
 dependencies {
     implementation(project(":terminal-view"))
-    implementation("org.connectbot:sshlib:2.2.22")
-    implementation("androidx.core:core-ktx:1.15.0")
-    implementation("androidx.appcompat:appcompat:1.7.0")
-    implementation("com.google.android.material:material:1.12.0")
-    implementation("androidx.activity:activity-ktx:1.9.3")
+    implementation("org.connectbot:sshlib:2.2.46")
+    implementation("androidx.core:core-ktx:1.18.0")
+    implementation("androidx.appcompat:appcompat:1.7.1")
+    implementation("com.google.android.material:material:1.13.0")
+    implementation("androidx.activity:activity-ktx:1.13.0")
     implementation("androidx.biometric:biometric:1.1.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
-    implementation("io.sentry:sentry-android:8.39.1")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
+    implementation("io.sentry:sentry-android:8.41.0")
 
     // Pinned to stabilize dependency locking: AGP 8.7.3's data binding transforms
     // resolve kotlin-stdlib-common at build time, but `--write-locks` doesn't
     // capture it, producing a lock mismatch on CI. (In Kotlin 2.0+ this artifact
     // is an empty KMP metadata jar on the JVM, so pinning has no runtime cost.)
-    implementation("org.jetbrains.kotlin:kotlin-stdlib-common:2.0.21")
+    implementation("org.jetbrains.kotlin:kotlin-stdlib-common:2.3.21")
 }

@@ -11,14 +11,14 @@ hogelog. This page describes how the App handles user data.
 
 ## Data stored on your device
 
-- **SSH connection profiles** — hostname, port, username, and identity-key alias
-  are stored in the App's private storage. The App does not transmit these to
-  any third party.
-- **App preferences** — shortcut bar configuration and terminal settings are
-  stored locally.
-- **SSH authentication key** — an ECDSA P-256 private key is generated and held
-  in the Android Keystore (hardware-backed when available). The private key
-  never leaves your device.
+- **Locally stored data** — SSH connection profiles (hostname, port, username,
+  identity-key alias), shortcut bar configuration, and terminal settings are
+  stored in the App's private storage. The App does not transmit them to any
+  third party.
+- **SSH authentication key** — an ECDSA P-256 private key is generated inside
+  the Android Keystore (hardware-backed when available). The Keystore API does
+  not expose the raw key material; the private key cannot be exported off the
+  device by anyone, including the user.
 
 ## Data sent to remote services
 
@@ -36,10 +36,6 @@ hogelog. This page describes how the App handles user data.
 
 - `INTERNET` — required to connect to the SSH servers you specify.
 - `USE_BIOMETRIC` — required to authorize use of the on-device SSH private key.
-
-## Children
-
-The App is not directed to children under 13.
 
 ## Open source
 

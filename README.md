@@ -4,7 +4,7 @@ Android SSH client tuned for terminal-heavy workflows like Claude Code's TUI.
 
 ## Features
 
-- ECDSA P-256 key pair generated in the Android Keystore (hardware-backed when available)
+- ECDSA P-256 key pair generated inside the Android Keystore (hardware-backed when available); the private key is non-exportable — it cannot be retrieved off the device by anyone, including the user
 - Biometric-gated SSH public key authentication via [sshlib](https://github.com/connectbot/sshlib):
   the private key never leaves the TEE; one biometric authentication authorizes signing for
   30 minutes (the lock-screen unlock counts, so active use stays seamless)

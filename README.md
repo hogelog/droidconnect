@@ -10,10 +10,13 @@ Android SSH client tuned for terminal-heavy workflows like Claude Code's TUI.
 - Biometric-gated SSH public key authentication via [sshlib](https://github.com/connectbot/sshlib):
   the private key never leaves the TEE; one biometric authentication authorizes signing for
   30 minutes (the lock-screen unlock counts, so active use stays seamless)
-- Terminal emulation via [Termux terminal-emulator/terminal-view](https://github.com/termux/termux-app)
-- xterm-256color compatible rendering
-- Configurable shortcut bars (always-on and per-foreground-command)
+- Terminal emulation via [Termux terminal-emulator/terminal-view](https://github.com/termux/termux-app), xterm-256color compatible
+- tmux-aware UI: the active pane's OSC window title (foreground command) drives per-context input surfaces, with a configurable tmux prefix letter
+- Customizable input surfaces grouped by context: shortcut bar, left/right swipe payloads, and a FAB speed-dial menu
+- Learned suggestions: a bigram model over past stdin per foreground command surfaces candidate next tokens in a dynamic row
+- Image upload: pick an image and the app SCPs it to the remote, then inserts the uploaded path at the cursor — built for handing images to Claude Code
 - Japanese IME input
+- Crash reporting via Sentry — only stack traces and device metadata; SSH credentials, hostnames, and terminal contents are filtered out (see [Privacy Policy](docs/privacy.md))
 
 ## Build
 

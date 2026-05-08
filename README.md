@@ -8,17 +8,15 @@ Requires Android 14 (API 34) or later.
 
 ## Features
 
-- ECDSA P-256 key pair generated inside the Android Keystore (hardware-backed when available); the private key is non-exportable — it cannot be retrieved off the device by anyone, including the user
-- Biometric-gated SSH public key authentication via [sshlib](https://github.com/connectbot/sshlib):
-  the private key never leaves the TEE; one biometric authentication authorizes signing for
-  30 minutes (the lock-screen unlock counts, so active use stays seamless)
-- Terminal emulation via [Termux terminal-emulator/terminal-view](https://github.com/termux/termux-app), xterm-256color compatible
-- tmux-aware UI: the active pane's OSC window title (foreground command) drives per-context input surfaces, with a configurable tmux prefix letter
-- Customizable input surfaces grouped by context: shortcut bar, left/right swipe payloads, and a FAB speed-dial menu
-- Learned suggestions: a bigram model over past stdin per foreground command surfaces candidate next tokens in a dynamic row
-- Image upload: pick an image and the app SCPs it to the remote, then inserts the uploaded path at the cursor — built for handing images to Claude Code
+- Biometric-gated SSH public key authentication via [sshlib](https://github.com/connectbot/sshlib); one unlock authorizes signing for 30 minutes (the lock-screen unlock counts)
+- Private key stays on the device and cannot be exported
+- xterm-256color terminal emulation via [Termux terminal-emulator/terminal-view](https://github.com/termux/termux-app)
+- tmux-aware: input surfaces switch with the active pane's foreground command
+- Customizable per-context input surfaces: shortcut bar, left/right swipe payloads, and a FAB speed-dial menu
+- Learned input suggestions per command, based on your past input
+- Image upload: pick an image to upload to the remote and insert the path at the cursor — built for handing images to Claude Code
 - Japanese IME input
-- Crash reporting via Sentry — only stack traces and device metadata; SSH credentials, hostnames, and terminal contents are filtered out (see [Privacy Policy](docs/privacy.md))
+- Crash reporting that filters out SSH credentials, hostnames, and terminal contents (see [Privacy Policy](docs/privacy.md))
 
 ## Build
 

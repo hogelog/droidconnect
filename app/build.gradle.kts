@@ -149,9 +149,11 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
     implementation("io.sentry:sentry-android:8.41.0")
 
-    // Pinned to stabilize dependency locking: AGP 8.7.3's data binding transforms
+    // Pinned to stabilize dependency locking: AGP's data binding transforms
     // resolve kotlin-stdlib-common at build time, but `--write-locks` doesn't
-    // capture it, producing a lock mismatch on CI. (In Kotlin 2.0+ this artifact
-    // is an empty KMP metadata jar on the JVM, so pinning has no runtime cost.)
+    // capture it, producing a lock mismatch on CI. Keep this version aligned
+    // with the Kotlin bundled by AGP — bumping AGP requires re-pinning here.
+    // (In Kotlin 2.0+ this artifact is an empty KMP metadata jar on the JVM,
+    // so pinning has no runtime cost.)
     implementation("org.jetbrains.kotlin:kotlin-stdlib-common:2.3.21")
 }

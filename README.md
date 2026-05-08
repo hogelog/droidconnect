@@ -18,6 +18,16 @@ Requires Android 14 (API 34) or later.
 - Japanese IME input
 - Crash reporting that filters out SSH credentials, hostnames, and terminal contents (see [Privacy Policy](docs/privacy.md))
 
+## Verifying release binaries
+
+Release artifacts are built on GitHub Actions and signed with SLSA build
+provenance. To verify that an APK or AAB came from this repository's release
+workflow:
+
+```bash
+gh attestation verify pocketsecureshell-vX.Y.Z.apk --repo hogelog/pocket-secure-shell
+```
+
 ## Build
 
 ### Requirements
@@ -34,17 +44,6 @@ git submodule update --init --recursive
 ```
 
 The debug APK will be produced at `app/build/outputs/apk/debug/app-debug.apk`.
-
-## Verifying release binaries
-
-Release artifacts are built on GitHub Actions and signed with SLSA build
-provenance. To verify that an APK or AAB came from this repository's release
-workflow:
-
-```bash
-gh attestation verify pocketsecureshell-vX.Y.Z.apk \
-  --repo hogelog/pocket-secure-shell
-```
 
 ## License
 

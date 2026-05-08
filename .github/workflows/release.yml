@@ -5,6 +5,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   release:
@@ -88,6 +90,13 @@ jobs:
              "artifacts/pocketsecureshell-${GITHUB_REF_NAME}.apk"
           cp app/build/outputs/bundle/release/app-release.aab \
              "artifacts/pocketsecureshell-${GITHUB_REF_NAME}.aab"
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: |
+            artifacts/*.apk
+            artifacts/*.aab
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3

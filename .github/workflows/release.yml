@@ -92,7 +92,7 @@ jobs:
              "artifacts/pocketsecureshell-${GITHUB_REF_NAME}.aab"
 
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             artifacts/*.apk

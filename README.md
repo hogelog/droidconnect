@@ -25,8 +25,7 @@ provenance. To verify that an APK or AAB came from this repository's release
 workflow:
 
 ```bash
-gh attestation verify pocketsecureshell-vX.Y.Z.apk \
-  --repo hogelog/pocket-secure-shell
+gh attestation verify pocketsecureshell-vX.Y.Z.apk --repo hogelog/pocket-secure-shell
 ```
 
 ## Build

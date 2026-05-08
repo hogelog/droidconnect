@@ -8,9 +8,9 @@ Requires Android 14 (API 34) or later.
 
 ## Features
 
-- Biometric-gated SSH public key authentication; one unlock authorizes signing for 30 minutes (the lock-screen unlock counts)
+- Biometric-gated SSH public key authentication via [sshlib](https://github.com/connectbot/sshlib); one unlock authorizes signing for 30 minutes (the lock-screen unlock counts)
 - Private key stays on the device and cannot be exported
-- xterm-256color terminal emulation
+- xterm-256color terminal emulation via [Termux terminal-emulator/terminal-view](https://github.com/termux/termux-app)
 - tmux-aware: input surfaces switch with the active pane's foreground command
 - Customizable per-context input surfaces: shortcut bar, left/right swipe payloads, and a FAB speed-dial menu
 - Learned input suggestions per command, based on your past input

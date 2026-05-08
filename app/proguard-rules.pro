@@ -10,3 +10,9 @@
 -keep class com.trilead.ssh2.** { *; }
 -keepclassmembers class com.trilead.ssh2.** { *; }
 -dontwarn com.trilead.ssh2.**
+
+# Compile-only annotations referenced by transitive deps (material, tink) that
+# aren't on the runtime classpath; R8 fails the build without these.
+-dontwarn com.google.errorprone.annotations.CanIgnoreReturnValue
+-dontwarn com.google.errorprone.annotations.Immutable
+-dontwarn javax.annotation.Nullable

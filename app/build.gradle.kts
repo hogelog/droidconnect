@@ -19,8 +19,10 @@ fun requireEnv(name: String): String =
 
 val prNumber: String? = System.getenv("PR_NUMBER")?.takeIf { it.isNotBlank() }
 val releaseVersion: String? = System.getenv("RELEASE_VERSION")?.takeIf { it.isNotBlank() }
+val releaseVersionSuffix: String? = System.getenv("RELEASE_VERSION_SUFFIX")?.takeIf { it.isNotBlank() }
 val baseVersionName = "0.3.4"
 val appVersionName: String = when {
+    releaseVersion != null && releaseVersionSuffix != null -> "$releaseVersion-$releaseVersionSuffix"
     releaseVersion != null -> releaseVersion
     prNumber != null -> "$baseVersionName-pr-$prNumber-$gitShortRev"
     else -> baseVersionName
@@ -162,7 +164,7 @@ sentry {
 
 play {
     track.set("internal")
-    releaseStatus.set(com.github.triplet.gradle.androidpublisher.ReleaseStatus.DRAFT)
+    releaseStatus.set(com.github.triplet.gradle.androidpublisher.ReleaseStatus.COMPLETED)
 
     // google-github-actions/auth writes the WIF credentials file and exposes its
     // path via GOOGLE_APPLICATION_CREDENTIALS. GoogleCredentials.fromStream (used

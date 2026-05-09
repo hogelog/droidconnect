@@ -4,6 +4,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   build:
@@ -11,6 +12,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          # Full history + tags so versionCode can count commits since the previous v* tag.
+          fetch-depth: 0
 
       - name: Compute submodule cache key
         id: submodule-key
@@ -36,11 +40,29 @@ jobs:
           distribution: temurin
           java-version: 17
 
+      # See release.yml: WIF subject token chain hits roots not in Temurin's
+      # bundled cacerts; install ca-certificates-java so publishReleaseBundle works.
+      - name: Install ca-certificates-java and point JVM at it
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ca-certificates-java
+          echo "JAVA_TOOL_OPTIONS=-Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts -Djavax.net.ssl.trustStorePassword=changeit" >> "$GITHUB_ENV"
+
       - uses: android-actions/setup-android@v4
 
       - uses: gradle/actions/setup-gradle@v6
         with:
           cache-write-only: true
+
+      # Skipped when the Play Console / WIF setup is incomplete (vars unset); the
+      # debug/DeployGate path still publishes.
+      - name: Authenticate to Google Cloud
+        id: gcloud-auth
+        if: ${{ vars.GCLOUD_WIF_PROVIDER != '' && vars.GCLOUD_SERVICE_ACCOUNT != '' }}
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCLOUD_WIF_PROVIDER }}
+          service_account: ${{ vars.GCLOUD_SERVICE_ACCOUNT }}
 
       # Drop maven-publish blocks (unused, broken under Gradle 8+) and rewrite
       # `proguard-android.txt` to the `-optimize` variant required by AGP 9.0.
@@ -50,10 +72,50 @@ jobs:
             sed -i "/apply plugin: 'maven-publish'/d; /task sourceJar/,/^}/d; /afterEvaluate/,/^}/d; s/proguard-android\.txt/proguard-android-optimize.txt/g" "$f"
           done
 
-      - name: Build debug APK and unsigned release AAB
+      - name: Read baseVersionName
+        id: base-version
+        run: |
+          v=$(grep -oP 'val baseVersionName = "\K[0-9]+\.[0-9]+\.[0-9]+' app/build.gradle.kts)
+          if [[ -z "$v" ]]; then
+            echo "Unable to extract baseVersionName from app/build.gradle.kts" >&2
+            exit 1
+          fi
+          echo "value=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Decode release keystore
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > "${RUNNER_TEMP}/release.keystore"
+
+      - name: Build debug APK and signed release AAB
         env:
           SENTRY_DSN: ${{ vars.SENTRY_DSN }}
+          RELEASE_VERSION: ${{ steps.base-version.outputs.value }}
+          RELEASE_VERSION_SUFFIX: ${{ github.sha }}
+          RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: ./gradlew assembleDebug bundleRelease
+
+      # Re-passes the build env so the build script's signingConfigs block keeps
+      # evaluating cleanly; bundleRelease itself stays UP-TO-DATE from the build step.
+      - name: Publish AAB to Play Store internal track
+        if: ${{ steps.gcloud-auth.outcome == 'success' }}
+        env:
+          SENTRY_DSN: ${{ vars.SENTRY_DSN }}
+          RELEASE_VERSION: ${{ steps.base-version.outputs.value }}
+          RELEASE_VERSION_SUFFIX: ${{ github.sha }}
+          RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: ./gradlew publishReleaseBundle
+
+      - name: Remove keystore from runner
+        if: always()
+        run: rm -f "${RUNNER_TEMP}/release.keystore"
 
       - name: Publish main debug prerelease
         env:

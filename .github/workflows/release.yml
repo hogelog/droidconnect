@@ -73,7 +73,7 @@ jobs:
           cache-write-only: true
 
       # Skipped when the Play Console / WIF setup is incomplete (vars unset); the
-      # GitHub Release still publishes. Once the vars are populated, the publish
+      # GitHub Release still publishes. Once the vars are populated, the promote
       # step below picks up automatically.
       - name: Authenticate to Google Cloud
         id: gcloud-auth
@@ -122,18 +122,17 @@ jobs:
             artifacts/*.apk
             artifacts/*.aab
 
-      # Re-passes the build env so the build script's signingConfigs block keeps
-      # evaluating cleanly; bundleRelease itself stays UP-TO-DATE from the build step.
-      - name: Publish AAB to Play Store internal track
+      # The internal track was populated by main.yml when the tagged commit
+      # landed on main (versionName "<base>-<sha>"); here we promote that
+      # release to closed testing (alpha). promoteArtifact picks the latest
+      # release on the source track, so this assumes no later main push has
+      # raced ahead between the tag commit landing and this workflow running.
+      # The APK/AAB built/attested above are uploaded to the GitHub Release
+      # only — they are not pushed to Play, and their versionName is bare
+      # "<tag>" rather than the suffixed name on Play.
+      - name: Promote latest internal release to closed testing
         if: ${{ steps.gcloud-auth.outcome == 'success' }}
-        env:
-          SENTRY_DSN: ${{ vars.SENTRY_DSN }}
-          RELEASE_VERSION: ${{ steps.version.outputs.value }}
-          RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
-          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
-          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
-          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
-        run: ./gradlew publishReleaseBundle
+        run: ./gradlew promoteArtifact --from-track internal --promote-track alpha --release-status completed
 
       - name: Remove keystore from runner
         if: always()

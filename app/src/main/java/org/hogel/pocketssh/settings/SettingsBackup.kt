@@ -5,15 +5,17 @@ import androidx.core.content.edit
 import org.hogel.pocketssh.MainActivity
 import org.hogel.pocketssh.learning.BigramStore
 import org.hogel.pocketssh.shortcuts.ShortcutStore
+import org.hogel.pocketssh.ui.TerminalActivity
 import org.json.JSONArray
 import org.json.JSONObject
 
 /**
  * Serializes user-configurable settings to a single JSON document so users can
  * transfer them between devices. The bundle covers connection-target defaults
- * (host/port/username, tmux toggle and prefix), the entire shortcut store
- * (context groups, including their swipe and FAB payloads), and the learned
- * bigram counts that drive the dynamic suggestion row.
+ * (host/port/username, tmux toggle and prefix), the terminal font size, the
+ * entire shortcut store (context groups, including their swipe and FAB
+ * payloads), and the learned bigram counts that drive the dynamic suggestion
+ * row.
  *
  * Excluded:
  *  - SSH private key — keystore-bound (TEE), can't leave the device. Users
@@ -44,9 +46,19 @@ object SettingsBackup {
         val groupsJson = ShortcutStore.encodeContextGroups(store.loadContextGroups())
         val bigramsJson = encodeBigrams(BigramStore(context).snapshot())
 
+        val terminalPrefs = context.getSharedPreferences(
+            TerminalActivity.PREFS_TERMINAL, Context.MODE_PRIVATE,
+        )
+        val terminalJson = JSONObject().apply {
+            if (terminalPrefs.contains(TerminalActivity.KEY_FONT_SIZE_PX)) {
+                put("font_size_px", terminalPrefs.getInt(TerminalActivity.KEY_FONT_SIZE_PX, 0))
+            }
+        }
+
         return JSONObject()
             .put("version", VERSION)
             .put("connection", connectionJson)
+            .put("terminal", terminalJson)
             .put("context_groups", groupsJson)
             .put("bigrams", bigramsJson)
             .toString(2)
@@ -63,6 +75,7 @@ object SettingsBackup {
         require(version == VERSION) { "Unsupported settings version: $version" }
 
         val connectionObj = root.optJSONObject("connection")
+        val terminalObj = root.optJSONObject("terminal")
         val groupsArr: JSONArray? = root.optJSONArray("context_groups")
         val bigramsArr: JSONArray? = root.optJSONArray("bigrams")
         // Decode upfront so a bad payload throws before we touch persisted state.
@@ -88,6 +101,16 @@ object SettingsBackup {
                 }
                 if (connectionObj.has("tmux_prefix")) {
                     putString(MainActivity.KEY_TMUX_PREFIX, connectionObj.getString("tmux_prefix"))
+                }
+            }
+        }
+        if (terminalObj != null) {
+            val terminalPrefs = context.getSharedPreferences(
+                TerminalActivity.PREFS_TERMINAL, Context.MODE_PRIVATE,
+            )
+            terminalPrefs.edit {
+                if (terminalObj.has("font_size_px")) {
+                    putInt(TerminalActivity.KEY_FONT_SIZE_PX, terminalObj.getInt("font_size_px"))
                 }
             }
         }

@@ -1391,8 +1391,10 @@ private fun styleModifierButton(button: Button) {
         private const val MIN_FONT_SIZE_PX = 8
         private const val MAX_FONT_SIZE_PX = 80
         private const val FONT_SIZE_STEP_PX = 2
-        private const val PREFS_TERMINAL = "terminal"
-        private const val KEY_FONT_SIZE_PX = "font_size_px"
+        // Terminal-prefs schema is also consumed by SettingsBackup, so these
+        // are exposed module-internal rather than activity-private.
+        internal const val PREFS_TERMINAL = "terminal"
+        internal const val KEY_FONT_SIZE_PX = "font_size_px"
         // Mirrors MainActivity.PREFS_NAME / KEY_TMUX_PREFIX so we can read the
         // user's prefix without routing it through ConnectionParams.
         private const val PREFS_CONNECTION = "connection"

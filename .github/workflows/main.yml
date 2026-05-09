@@ -82,6 +82,12 @@ jobs:
           fi
           echo "value=$v" >> "$GITHUB_OUTPUT"
 
+      - name: Compute short rev
+        id: shortrev
+        env:
+          HEAD_SHA: ${{ github.sha }}
+        run: echo "value=${HEAD_SHA:0:7}" >> "$GITHUB_OUTPUT"
+
       - name: Decode release keystore
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
@@ -92,7 +98,7 @@ jobs:
         env:
           SENTRY_DSN: ${{ vars.SENTRY_DSN }}
           RELEASE_VERSION: ${{ steps.base-version.outputs.value }}
-          RELEASE_VERSION_SUFFIX: ${{ github.sha }}
+          RELEASE_VERSION_SUFFIX: ${{ steps.shortrev.outputs.value }}
           RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
           RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
@@ -106,7 +112,7 @@ jobs:
         env:
           SENTRY_DSN: ${{ vars.SENTRY_DSN }}
           RELEASE_VERSION: ${{ steps.base-version.outputs.value }}
-          RELEASE_VERSION_SUFFIX: ${{ github.sha }}
+          RELEASE_VERSION_SUFFIX: ${{ steps.shortrev.outputs.value }}
           RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
           RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}

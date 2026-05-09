@@ -14,6 +14,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          # Full history + tags so versionCode can count commits since the previous v* tag.
+          fetch-depth: 0
 
       - name: Derive release version
         id: version
@@ -55,6 +58,17 @@ jobs:
         with:
           cache-write-only: true
 
+      # Skipped when the Play Console / WIF setup is incomplete (vars unset); the
+      # GitHub Release still publishes. Once the vars are populated, the publish
+      # step below picks up automatically.
+      - name: Authenticate to Google Cloud
+        id: gcloud-auth
+        if: ${{ vars.GCLOUD_WIF_PROVIDER != '' && vars.GCLOUD_SERVICE_ACCOUNT != '' }}
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCLOUD_WIF_PROVIDER }}
+          service_account: ${{ vars.GCLOUD_SERVICE_ACCOUNT }}
+
       # Drop maven-publish blocks (unused, broken under Gradle 8+) and rewrite
       # `proguard-android.txt` to the `-optimize` variant required by AGP 9.0.
       - name: Patch vendor build scripts
@@ -79,10 +93,6 @@ jobs:
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: ./gradlew assembleRelease bundleRelease
 
-      - name: Remove keystore from runner
-        if: always()
-        run: rm -f "${RUNNER_TEMP}/release.keystore"
-
       - name: Stage release artifacts
         run: |
           mkdir -p artifacts
@@ -98,7 +108,27 @@ jobs:
             artifacts/*.apk
             artifacts/*.aab
 
+      # Re-passes the build env so the build script's signingConfigs block keeps
+      # evaluating cleanly; bundleRelease itself stays UP-TO-DATE from the build step.
+      - name: Publish AAB to Play Store internal track
+        if: ${{ steps.gcloud-auth.outcome == 'success' }}
+        env:
+          SENTRY_DSN: ${{ vars.SENTRY_DSN }}
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+          RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: ./gradlew publishReleaseBundle
+
+      - name: Remove keystore from runner
+        if: always()
+        run: rm -f "${RUNNER_TEMP}/release.keystore"
+
+      # Runs even when Play upload fails (e.g. service-account propagation delay)
+      # so the GitHub Release with signed artifacts is still produced.
       - name: Create GitHub Release
+        if: ${{ !cancelled() }}
         uses: softprops/action-gh-release@v3
         with:
           files: |

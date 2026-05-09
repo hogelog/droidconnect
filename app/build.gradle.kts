@@ -3,6 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     id("com.android.application")
     id("io.sentry.android.gradle")
+    id("com.github.triplet.play")
 }
 
 // Embedded into BuildConfig so the app can show a `<versionName>-<shortrev>` footer.
@@ -25,9 +26,27 @@ val appVersionName: String = when {
     else -> baseVersionName
 }
 
-// Tag-driven monotonic versionCode: MAJOR*10000 + MINOR*100 + PATCH (e.g. 1.2.3 -> 10203).
-// Caps at v99.99.99 (= 999999); leaves headroom to migrate to a date-based encoding
-// (e.g. YYYYMMDDpp ~= 2_000_000_000) later without going backwards.
+// Tag-driven monotonic versionCode: MAJOR*1_000_000 + MINOR*10_000 + PATCH*100 + COMMITS_SINCE_TAG.
+// Allows up to 99 commits per patch; widening to MAJOR*10_000_000 + MINOR*100_000 + PATCH*1_000 + N
+// later stays monotonic because every segment shifts to a higher decade.
+val commitsSinceTag: Int = if (releaseVersion != null) {
+    val prevTag = providers.exec {
+        commandLine("git", "describe", "--tags", "--abbrev=0", "--match=v*", "--exclude=v$releaseVersion", "HEAD")
+        isIgnoreExitValue = true
+    }.standardOutput.asText.map { it.trim() }.getOrElse("")
+    val countCmd = if (prevTag.isNotEmpty()) {
+        listOf("git", "rev-list", "--count", "$prevTag..HEAD")
+    } else {
+        listOf("git", "rev-list", "--count", "HEAD")
+    }
+    providers.exec {
+        commandLine(countCmd)
+        isIgnoreExitValue = true
+    }.standardOutput.asText.map { it.trim().toIntOrNull() ?: 0 }.getOrElse(0)
+} else {
+    0
+}
+
 val appVersionCode: Int = if (releaseVersion != null) {
     val parts = releaseVersion.split(".")
     require(parts.size == 3) {
@@ -36,7 +55,10 @@ val appVersionCode: Int = if (releaseVersion != null) {
     val (major, minor, patch) = parts.map {
         it.toIntOrNull() ?: error("RELEASE_VERSION segment '$it' is not an integer")
     }
-    major * 10000 + minor * 100 + patch
+    require(commitsSinceTag in 0..99) {
+        "commitsSinceTag must be 0..99 to avoid colliding with the PATCH segment; got $commitsSinceTag"
+    }
+    major * 1_000_000 + minor * 10_000 + patch * 100 + commitsSinceTag
 } else {
     1
 }
@@ -136,6 +158,18 @@ sentry {
     autoUploadProguardMapping.set(false)
     autoUploadNativeSymbols.set(false)
     includeSourceContext.set(false)
+}
+
+play {
+    track.set("internal")
+    releaseStatus.set(com.github.triplet.gradle.androidpublisher.ReleaseStatus.COMPLETED)
+
+    // google-github-actions/auth writes the WIF credentials file and exposes its
+    // path via GOOGLE_APPLICATION_CREDENTIALS. GoogleCredentials.fromStream (used
+    // by GPP) accepts both service account keys and external_account (WIF) JSON.
+    System.getenv("GOOGLE_APPLICATION_CREDENTIALS")?.takeIf { it.isNotBlank() }?.let {
+        serviceAccountCredentials.set(file(it))
+    }
 }
 
 dependencies {

@@ -91,8 +91,8 @@ class ShortcutStore(context: Context) {
                     Shortcut("⬅️", "{TMUX-PREFIX}p"),
                     Shortcut("➡️", "{TMUX-PREFIX}n"),
                 ),
-                swipeLeft = Shortcut("prev", "{TMUX-PREFIX}p"),
-                swipeRight = Shortcut("next", "{TMUX-PREFIX}n"),
+                swipeLeft = Shortcut("⬅️", "{TMUX-PREFIX}p"),
+                swipeRight = Shortcut("➡️", "{TMUX-PREFIX}n"),
             ),
             // The `claude` deck is intentionally pared down to control-byte
             // payloads only — ESC, Shift-Tab, ^J. Plain text payloads like

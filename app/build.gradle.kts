@@ -162,7 +162,7 @@ sentry {
 
 play {
     track.set("internal")
-    releaseStatus.set(com.github.triplet.gradle.androidpublisher.ReleaseStatus.COMPLETED)
+    releaseStatus.set(com.github.triplet.gradle.androidpublisher.ReleaseStatus.DRAFT)
 
     // google-github-actions/auth writes the WIF credentials file and exposes its
     // path via GOOGLE_APPLICATION_CREDENTIALS. GoogleCredentials.fromStream (used

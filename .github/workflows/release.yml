@@ -125,10 +125,7 @@ jobs:
         if: always()
         run: rm -f "${RUNNER_TEMP}/release.keystore"
 
-      # Runs even when Play upload fails (e.g. service-account propagation delay)
-      # so the GitHub Release with signed artifacts is still produced.
       - name: Create GitHub Release
-        if: ${{ !cancelled() }}
         uses: softprops/action-gh-release@v3
         with:
           files: |

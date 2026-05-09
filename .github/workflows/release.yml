@@ -53,6 +53,19 @@ jobs:
           distribution: temurin
           java-version: 17
 
+      # Temurin's bundled cacerts misses roots that the Workload Identity
+      # Federation HTTPS chain hits (subject token from
+      # *.actions.githubusercontent.com), making Gradle Play Publisher's
+      # publishReleaseBundle fail with "PKIX path building failed". The runner's
+      # system Java trust store has the same Mozilla CA set the rest of the
+      # runner already trusts, so we install ca-certificates-java to populate
+      # /etc/ssl/certs/java/cacerts and point the JVM at it.
+      - name: Install ca-certificates-java and point JVM at it
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ca-certificates-java
+          echo "JAVA_TOOL_OPTIONS=-Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts -Djavax.net.ssl.trustStorePassword=changeit" >> "$GITHUB_ENV"
+
       - uses: android-actions/setup-android@v4
 
       - uses: gradle/actions/setup-gradle@v6

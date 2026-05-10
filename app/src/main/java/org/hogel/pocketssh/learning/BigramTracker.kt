@@ -126,6 +126,24 @@ class BigramTracker(
         poisoned = false
     }
 
+    /**
+     * Authoritatively adopt [token] as the most recent committed token on the
+     * current line, regardless of whether the line was [poisoned]. Used when
+     * the UI lets the user commit a token directly (e.g. a learned-completion
+     * tap) — the byte-stream heuristic that marks the line poisoned after any
+     * control byte would otherwise leave [prev] stuck at a stale value once
+     * the user has pressed an arrow key, Ctrl-shortcut, or Esc since the last
+     * Enter, and subsequent taps would fail to refresh the suggestion bar.
+     */
+    fun commitToken(token: String) {
+        if (token.isEmpty()) return
+        store.record(context, prev, token)
+        if (prev != token) prev = token
+        buffer.reset()
+        poisoned = false
+        onPrevChanged()
+    }
+
     private fun decodeAndReset(): String {
         val s = String(buffer.toByteArray(), Charsets.UTF_8)
         buffer.reset()

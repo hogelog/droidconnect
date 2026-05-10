@@ -444,14 +444,25 @@ class TerminalActivity : AppCompatActivity() {
      * the `<ENTER>` pseudo token) so the chain rolls into the next round of
      * suggestions; long-press confirms and deletes the (context, prev, token)
      * bigram so a stale or unwanted candidate can be evicted in place.
+     *
+     * Non-ENTER taps bypass [writeToSsh]'s [BigramTracker.ingestSend] path and
+     * call [BigramTracker.commitToken] directly. Routing through `ingestSend`
+     * loses the tap when the line was poisoned by a prior control byte (arrow
+     * key, Ctrl-shortcut, Esc), which left the suggestion bar frozen on the
+     * previous candidate set.
      */
     private fun makeLearnedButton(token: String): Button {
-        val (label, payload) = if (token == BigramStore.ENTER) {
-            "⏎" to "\\r"
+        val isEnter = token == BigramStore.ENTER
+        val label = if (isEnter) "⏎" else token
+        val action: () -> Unit = if (isEnter) {
+            runShortcutAction("\\r")
         } else {
-            token to "$token "
+            {
+                service?.writeToSsh("$token ".toByteArray(Charsets.UTF_8))
+                bigramTracker.commitToken(token)
+            }
         }
-        val button = makeAuxButton(label, runShortcutAction(payload))
+        val button = makeAuxButton(label, action)
         button.setOnLongClickListener {
             confirmDeleteLearnedCandidate(label, token)
             true

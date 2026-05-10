@@ -7,6 +7,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <application
+        android:name=".PocketSshApplication"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -14,10 +15,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.PocketSecureShell">
 
-        <!-- Sentry placeholders are injected from app/build.gradle.kts. -->
-        <meta-data android:name="io.sentry.dsn" android:value="${sentryDsn}" />
-        <meta-data android:name="io.sentry.release" android:value="${sentryRelease}" />
-        <meta-data android:name="io.sentry.dist" android:value="${sentryDist}" />
+        <!-- Disable Sentry's manifest-driven auto-init so PocketSshApplication's
+             explicit SentryAndroid.init is the only configuration path. -->
+        <meta-data android:name="io.sentry.auto-init" android:value="false" />
 
         <activity
             android:name=".MainActivity"

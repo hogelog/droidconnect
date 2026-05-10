@@ -97,6 +97,13 @@
     <string name="group_summary_always">always matches</string>
     <string name="group_summary_tmux">tmux</string>
 
+    <string name="host_keys_title">Host keys</string>
+    <string name="host_keys_hint">Each entry is a server host key you previously accepted on first connection. Forgetting an entry causes the next connection to that server to prompt again, so use this to re-trust a legitimately rotated key without wiping all app data.</string>
+    <string name="host_keys_empty">No host keys remembered yet.</string>
+    <string name="host_keys_forget">Forget</string>
+    <string name="host_keys_forget_title">Forget host key?</string>
+    <string name="host_keys_forget_message">Forget the stored key for %1$s:%2$d? The next connection to this server will prompt you to verify the new key.</string>
+
     <string name="settings_export">Export settings</string>
     <string name="settings_import">Import settings</string>
     <string name="settings_export_copy">Copy</string>

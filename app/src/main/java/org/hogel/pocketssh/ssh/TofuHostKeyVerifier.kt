@@ -15,9 +15,9 @@ import java.util.Base64
  *   without prompting — that is the point of the check, since a silent
  *   prompt-and-replace would defeat MITM detection.
  *
- * On rotation the stored entry has to be cleared out-of-band (clear app
- * data) before reconnecting; we do not currently expose an in-app way to
- * forget a host key.
+ * Stored entries can be removed individually from the in-app host-keys
+ * settings screen so a legitimate key rotation can be re-trusted without
+ * wiping all app data.
  */
 class TofuHostKeyVerifier(
     private val store: HostKeyStore,
@@ -35,7 +35,7 @@ class TofuHostKeyVerifier(
             return stored.algorithm == serverHostKeyAlgorithm &&
                 MessageDigest.isEqual(stored.key, serverHostKey)
         }
-        val fingerprint = sha256Fingerprint(serverHostKey)
+        val fingerprint = sha256HostKeyFingerprint(serverHostKey)
         val accepted = prompt.confirmNewHostKey(
             hostname,
             port,
@@ -47,15 +47,15 @@ class TofuHostKeyVerifier(
         }
         return accepted
     }
+}
 
-    /**
-     * `SHA256:<base64-no-padding>` over the raw server host key blob — the
-     * same format `ssh -o FingerprintHash=sha256` prints, so users can
-     * compare against `ssh-keygen -lf` output on the server side.
-     */
-    private fun sha256Fingerprint(serverHostKey: ByteArray): String {
-        val hash = MessageDigest.getInstance("SHA-256").digest(serverHostKey)
-        val encoded = Base64.getEncoder().withoutPadding().encodeToString(hash)
-        return "SHA256:$encoded"
-    }
+/**
+ * `SHA256:<base64-no-padding>` over the raw server host key blob — the same
+ * format `ssh -o FingerprintHash=sha256` prints, so users can compare against
+ * `ssh-keygen -lf` output on the server side.
+ */
+fun sha256HostKeyFingerprint(serverHostKey: ByteArray): String {
+    val hash = MessageDigest.getInstance("SHA-256").digest(serverHostKey)
+    val encoded = Base64.getEncoder().withoutPadding().encodeToString(hash)
+    return "SHA256:$encoded"
 }

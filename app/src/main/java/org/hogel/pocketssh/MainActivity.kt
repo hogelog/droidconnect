@@ -27,6 +27,7 @@ import org.hogel.pocketssh.settings.SettingsBackup
 import org.hogel.pocketssh.shortcuts.ShortcutStore
 import org.hogel.pocketssh.ssh.SshConnectionService
 import org.hogel.pocketssh.ssh.SshKeyManager
+import org.hogel.pocketssh.ui.HostKeysSettingsActivity
 import org.hogel.pocketssh.ui.ShortcutsSettingsActivity
 import org.hogel.pocketssh.ui.TerminalActivity
 
@@ -121,6 +122,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
+        R.id.action_host_keys -> {
+            startActivity(Intent(this, HostKeysSettingsActivity::class.java))
+            true
+        }
         R.id.action_export_settings -> {
             // Persist any in-flight edits before snapshotting so the export
             // matches what the user sees in the form.

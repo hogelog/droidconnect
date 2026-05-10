@@ -43,6 +43,10 @@
             android:parentActivityName=".ui.ShortcutsSettingsActivity"
             android:windowSoftInputMode="adjustResize" />
 
+        <activity
+            android:name=".ui.HostKeysSettingsActivity"
+            android:parentActivityName=".MainActivity" />
+
         <service
             android:name=".ssh.SshConnectionService"
             android:exported="false"

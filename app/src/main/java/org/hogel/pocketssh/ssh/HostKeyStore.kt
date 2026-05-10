@@ -33,7 +33,34 @@ class HostKeyStore(context: Context) {
         prefs.edit { putString(prefKey(host, port), "$algorithm $encoded") }
     }
 
+    /** Every stored entry, in `host:port` insertion-defined order. */
+    fun list(): List<HostKeyEntry> = buildList {
+        for ((rawKey, value) in prefs.all) {
+            if (value !is String) continue
+            val (host, port) = parsePrefKey(rawKey) ?: continue
+            val space = value.indexOf(' ')
+            if (space < 0) continue
+            val algorithm = value.substring(0, space)
+            val keyBytes = runCatching { Base64.getDecoder().decode(value.substring(space + 1)) }
+                .getOrNull() ?: continue
+            add(HostKeyEntry(host, port, algorithm, keyBytes))
+        }
+    }
+
+    fun delete(host: String, port: Int) {
+        prefs.edit { remove(prefKey(host, port)) }
+    }
+
     private fun prefKey(host: String, port: Int): String = "$host:$port"
+
+    private fun parsePrefKey(raw: String): Pair<String, Int>? {
+        // Hosts can be IPv6 literals containing colons; the port is always the
+        // suffix after the last colon, so split there rather than the first.
+        val sep = raw.lastIndexOf(':')
+        if (sep <= 0 || sep == raw.length - 1) return null
+        val port = raw.substring(sep + 1).toIntOrNull() ?: return null
+        return raw.substring(0, sep) to port
+    }
 
     companion object {
         private const val PREFS_NAME = "host_keys"
@@ -41,3 +68,25 @@ class HostKeyStore(context: Context) {
 }
 
 class StoredHostKey(val algorithm: String, val key: ByteArray)
+
+data class HostKeyEntry(
+    val host: String,
+    val port: Int,
+    val algorithm: String,
+    val key: ByteArray,
+) {
+    override fun equals(other: Any?): Boolean =
+        other is HostKeyEntry &&
+            host == other.host &&
+            port == other.port &&
+            algorithm == other.algorithm &&
+            key.contentEquals(other.key)
+
+    override fun hashCode(): Int {
+        var result = host.hashCode()
+        result = 31 * result + port
+        result = 31 * result + algorithm.hashCode()
+        result = 31 * result + key.contentHashCode()
+        return result
+    }
+}

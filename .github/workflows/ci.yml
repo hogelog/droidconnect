@@ -122,3 +122,56 @@ jobs:
           SENTRY_DSN: ${{ vars.SENTRY_DSN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: ./gradlew :app:lintDebug --configuration-cache
+
+  test:
+    if: contains(fromJSON(vars.CI_ALLOWED_USERS), github.event.pull_request.user.login)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Compute submodule cache key
+        id: submodule-key
+        run: |
+          paths=$(git config -f .gitmodules --get-regexp path | awk '{print $2}')
+          hash=$(git ls-tree HEAD -- $paths | sha256sum | awk '{print $1}')
+          echo "hash=$hash" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v5
+        id: submodule-cache
+        with:
+          path: |
+            vendor
+            .git/modules
+          key: submodules-v2-${{ hashFiles('.gitmodules') }}-${{ steps.submodule-key.outputs.hash }}
+
+      - name: Initialize submodules
+        if: steps.submodule-cache.outputs.cache-hit != 'true'
+        run: git submodule update --init --recursive
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v4
+
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: true
+
+      # Drop maven-publish blocks (unused, broken under Gradle 8+) and rewrite
+      # `proguard-android.txt` to the `-optimize` variant required by AGP 9.0.
+      - name: Patch vendor build scripts
+        run: |
+          for f in vendor/termux-app/terminal-emulator/build.gradle vendor/termux-app/terminal-view/build.gradle; do
+            sed -i "/apply plugin: 'maven-publish'/d; /task sourceJar/,/^}/d; /afterEvaluate/,/^}/d; s/proguard-android\.txt/proguard-android-optimize.txt/g" "$f"
+          done
+
+      - name: Run unit tests
+        env:
+          SENTRY_DSN: ${{ vars.SENTRY_DSN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: ./gradlew :app:testDebugUnitTest --configuration-cache

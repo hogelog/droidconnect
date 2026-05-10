@@ -148,6 +148,10 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 kotlin {
@@ -199,4 +203,6 @@ dependencies {
     // (In Kotlin 2.0+ this artifact is an empty KMP metadata jar on the JVM,
     // so pinning has no runtime cost.)
     implementation("org.jetbrains.kotlin:kotlin-stdlib-common:2.3.21")
+
+    testImplementation("junit:junit:4.13.2")
 }

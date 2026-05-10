@@ -18,6 +18,11 @@ Requires Android 14 (API 34) or later.
 - Japanese IME input
 - Crash reporting that filters out SSH credentials, hostnames, and terminal contents (see [Privacy Policy](docs/privacy.md))
 
+## Install
+
+- **Google Play (closed test)**: join the [`pocket-secure-shell-tester` Google Group](https://groups.google.com/g/pocket-secure-shell-tester), then open the [opt-in URL](https://play.google.com/apps/testing/org.hogel.pocketssh) and tap "Become a tester".
+- **GitHub Releases**: grab the APK from [Releases](https://github.com/hogelog/pocket-secure-shell/releases). Recommended if you want to verify the binary against this source — see [Verifying release binaries](#verifying-release-binaries).
+
 ## Verifying release binaries
 
 Release artifacts are built on GitHub Actions and signed with SLSA build

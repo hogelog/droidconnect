@@ -4,7 +4,7 @@ title: Privacy Policy
 
 # Privacy Policy
 
-_Last updated: 2026-05-07_
+_Last updated: 2026-05-10_
 
 PocketSecureShell ("the App") is an open-source Android SSH client maintained by
 hogelog. This page describes how the App handles user data.
@@ -19,6 +19,13 @@ hogelog. This page describes how the App handles user data.
   the Android Keystore (hardware-backed when available). The Keystore API does
   not expose the raw key material; the private key cannot be exported off the
   device by anyone, including the user.
+- **Learned input suggestions** — to drive the dynamic suggestion row, the App
+  records frequency counts of tokens you have typed at the SSH prompt
+  (per-foreground-command bigrams) in a local SQLite database. This corpus is
+  effectively a partial history of shell commands you have entered. It stays in
+  the App's private storage and is never transmitted. Settings export includes
+  this corpus in plain JSON, so treat exported settings as sensitive. You can
+  remove individual entries via long-press on a suggestion button.
 
 ## Data sent to remote services
 

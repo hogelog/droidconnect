@@ -86,11 +86,18 @@ android {
         versionName = appVersionName
 
         // Sentry DSN is a public client-side identifier (kept in CI vars, not secrets).
-        // When unset the placeholder expands to "" and Sentry auto-init becomes a no-op.
-        manifestPlaceholders["sentryDsn"] = System.getenv("SENTRY_DSN") ?: ""
-        manifestPlaceholders["sentryRelease"] = "$applicationId@$versionName+$versionCode"
-        manifestPlaceholders["sentryDist"] = gitShortRev
-
+        // Wired through BuildConfig so PocketSshApplication can drive a manual
+        // SentryAndroid.init: auto-init is disabled in the manifest so the
+        // configuration callback (beforeSend scrubbing, attachment toggles,
+        // replay sample rates) is the single source of truth. An empty DSN
+        // makes the init call a no-op.
+        buildConfigField("String", "SENTRY_DSN", "\"${System.getenv("SENTRY_DSN") ?: ""}\"")
+        buildConfigField(
+            "String",
+            "SENTRY_RELEASE",
+            "\"$applicationId@$versionName+$versionCode\"",
+        )
+        buildConfigField("String", "SENTRY_DIST", "\"$gitShortRev\"")
         buildConfigField("String", "GIT_SHORT_REV", "\"$gitShortRev\"")
     }
 

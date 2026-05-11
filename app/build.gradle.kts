@@ -31,9 +31,17 @@ val appVersionName: String = when {
 // Tag-driven monotonic versionCode: MAJOR*1_000_000 + MINOR*10_000 + PATCH*100 + COMMITS_SINCE_TAG.
 // Allows up to 99 commits per patch; widening to MAJOR*10_000_000 + MINOR*100_000 + PATCH*1_000 + N
 // later stays monotonic because every segment shifts to a higher decade.
-val commitsSinceTag: Int = if (releaseVersion != null) {
+// Release builds carry the tag in RELEASE_VERSION; PR builds fall back to baseVersionName so they
+// share the same monotonic space as main builds instead of the local-only versionCode=1 sentinel.
+val versionForCode: String? = when {
+    releaseVersion != null -> releaseVersion
+    prNumber != null -> baseVersionName
+    else -> null
+}
+
+val commitsSinceTag: Int = if (versionForCode != null) {
     val prevTag = providers.exec {
-        commandLine("git", "describe", "--tags", "--abbrev=0", "--match=v*", "--exclude=v$releaseVersion", "HEAD")
+        commandLine("git", "describe", "--tags", "--abbrev=0", "--match=v*", "--exclude=v$versionForCode", "HEAD")
         isIgnoreExitValue = true
     }.standardOutput.asText.map { it.trim() }.getOrElse("")
     val countCmd = if (prevTag.isNotEmpty()) {
@@ -49,13 +57,13 @@ val commitsSinceTag: Int = if (releaseVersion != null) {
     0
 }
 
-val appVersionCode: Int = if (releaseVersion != null) {
-    val parts = releaseVersion.split(".")
+val appVersionCode: Int = if (versionForCode != null) {
+    val parts = versionForCode.split(".")
     require(parts.size == 3) {
-        "RELEASE_VERSION must be MAJOR.MINOR.PATCH, got '$releaseVersion'"
+        "Version for versionCode must be MAJOR.MINOR.PATCH, got '$versionForCode'"
     }
     val (major, minor, patch) = parts.map {
-        it.toIntOrNull() ?: error("RELEASE_VERSION segment '$it' is not an integer")
+        it.toIntOrNull() ?: error("Version segment '$it' is not an integer")
     }
     require(commitsSinceTag in 0..99) {
         "commitsSinceTag must be 0..99 to avoid colliding with the PATCH segment; got $commitsSinceTag"

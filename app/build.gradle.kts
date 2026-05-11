@@ -20,7 +20,7 @@ fun requireEnv(name: String): String =
 val prNumber: String? = System.getenv("PR_NUMBER")?.takeIf { it.isNotBlank() }
 val releaseVersion: String? = System.getenv("RELEASE_VERSION")?.takeIf { it.isNotBlank() }
 val releaseVersionSuffix: String? = System.getenv("RELEASE_VERSION_SUFFIX")?.takeIf { it.isNotBlank() }
-val baseVersionName = "0.3.4"
+val baseVersionName = "0.3.5"
 val appVersionName: String = when {
     releaseVersion != null && releaseVersionSuffix != null -> "$releaseVersion-$releaseVersionSuffix"
     releaseVersion != null -> releaseVersion

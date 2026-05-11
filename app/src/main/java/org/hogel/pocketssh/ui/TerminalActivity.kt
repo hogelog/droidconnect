@@ -45,6 +45,7 @@ import org.hogel.pocketssh.R
 import org.hogel.pocketssh.databinding.ActivityTerminalBinding
 import org.hogel.pocketssh.learning.BigramStore
 import org.hogel.pocketssh.learning.BigramTracker
+import org.hogel.pocketssh.links.LinkDetector
 import org.hogel.pocketssh.shortcuts.ResolvedContext
 import org.hogel.pocketssh.shortcuts.Shortcut
 import org.hogel.pocketssh.shortcuts.ShortcutAction
@@ -1078,9 +1079,16 @@ private fun styleModifierButton(button: Button) {
             detector.onTouchEvent(event)
             val inMouseTracking = binding.terminalView.mEmulator?.isMouseTrackingActive == true
             val tapInMouseTracking = tappedThisGesture && inMouseTracking
-            val consume = handlingScrollGesture || tapInMouseTracking
+            var consume = handlingScrollGesture || tapInMouseTracking
             when (event.action) {
                 MotionEvent.ACTION_UP -> {
+                    // Tapped a URL? Open it (with confirmation) instead of
+                    // forwarding the tap to the mouse-tracking sequence or
+                    // toggling the keyboard. Has to run before the CANCEL
+                    // replay below so we can still read the buffer at the
+                    // tap coords.
+                    val openedLink = tappedThisGesture && tryOpenLinkAt(event)
+                    if (openedLink) consume = true
                     if (consume) {
                         // Replay the UP to TerminalView as a CANCEL so its
                         // gesture detector resets (clears the long-press timer)
@@ -1094,7 +1102,7 @@ private fun styleModifierButton(button: Button) {
                         cancel.recycle()
                     }
                     if (pendingSwipeDirection != 0) commitPendingSwipe()
-                    if (tapInMouseTracking) {
+                    if (tapInMouseTracking && !openedLink) {
                         binding.imeProxy.requestFocus()
                         toggleSoftKeyboard()
                     }
@@ -1175,6 +1183,49 @@ private fun styleModifierButton(button: Button) {
         if (text.isNullOrEmpty()) return
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText("pocketssh", text))
+    }
+
+    /**
+     * Map a tap on the terminal to a URL, if the tapped word resolves to one.
+     * Returns true (and shows the confirm dialog) when a URL is found, in
+     * which case the caller should suppress the default tap behaviour.
+     *
+     * Bounded to the visible screen rows so that scrollback (`mTopRow < 0`)
+     * is not handled — `TerminalBuffer.getWordAtLocation` only walks
+     * line-wrap continuations in the screen range, not the transcript.
+     */
+    private fun tryOpenLinkAt(event: MotionEvent): Boolean {
+        val terminalView = binding.terminalView
+        val emulator = terminalView.mEmulator ?: return false
+        val coords = terminalView.getColumnAndRow(event, true)
+        val column = coords[0]
+        val row = coords[1]
+        if (row < 0 || row >= emulator.mRows) return false
+        if (column < 0 || column >= emulator.mColumns) return false
+        val word = emulator.screen.getWordAtLocation(column, row)
+        if (word.isNullOrBlank()) return false
+        val url = LinkDetector.extractUrls(word).firstOrNull() ?: return false
+        showOpenLinkConfirmDialog(url)
+        return true
+    }
+
+    private fun showOpenLinkConfirmDialog(url: String) {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.open_link_title)
+            .setMessage(url)
+            .setPositiveButton(R.string.open_link_open) { _, _ -> launchExternalUrl(url) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun launchExternalUrl(url: String) {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            startActivity(intent)
+        } catch (_: android.content.ActivityNotFoundException) {
+            Toast.makeText(this, R.string.open_link_no_app, Toast.LENGTH_SHORT).show()
+        }
     }
 
     // Bytes go to SSH stdin, not the dummy TerminalSession, so we can't

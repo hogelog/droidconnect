@@ -81,6 +81,37 @@ class BigramStore(context: Context) {
         return rows
     }
 
+    /** Rows scoped to a single [context], ordered by descending count. */
+    fun snapshotByContext(context: String): List<Bigram> {
+        val cursor = helper.readableDatabase.rawQuery(
+            "SELECT context, prev, next, count FROM bigram WHERE context=? " +
+                "ORDER BY count DESC, prev ASC, next ASC",
+            arrayOf(context),
+        )
+        val rows = mutableListOf<Bigram>()
+        cursor.use { c ->
+            while (c.moveToNext()) {
+                rows += Bigram(c.getString(0), c.getString(1), c.getString(2), c.getInt(3))
+            }
+        }
+        return rows
+    }
+
+    /** Distinct contexts and how many bigrams are stored under each, alphabetical. */
+    fun contextSummaries(): List<ContextSummary> {
+        val cursor = helper.readableDatabase.rawQuery(
+            "SELECT context, COUNT(*) FROM bigram GROUP BY context ORDER BY context ASC",
+            null,
+        )
+        val rows = mutableListOf<ContextSummary>()
+        cursor.use { c ->
+            while (c.moveToNext()) {
+                rows += ContextSummary(c.getString(0), c.getInt(1))
+            }
+        }
+        return rows
+    }
+
     /**
      * Replace every row with [rows] in a single transaction. Used by settings
      * import so a partial failure can't leave a half-written table.
@@ -108,6 +139,8 @@ class BigramStore(context: Context) {
     }
 
     data class Bigram(val context: String, val prev: String, val next: String, val count: Int)
+
+    data class ContextSummary(val context: String, val count: Int)
 
     private class Helper(context: Context) :
         SQLiteOpenHelper(context, DB_NAME, null, DB_VERSION) {

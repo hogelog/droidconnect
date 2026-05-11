@@ -109,6 +109,15 @@
     <string name="learning_clear_message">Wipe the bigram counts that drive the dynamic suggestion row? The shortcut bar will start fresh and re-learn as you type.</string>
     <string name="learning_clear_confirm">Clear</string>
     <string name="learning_clear_done">Learned suggestions cleared</string>
+    <string name="learning_empty">No learned suggestions yet. Type commands and the bigram counts will show up here.</string>
+    <string name="learning_context_chevron">›</string>
+    <string name="learning_bigram_arrow">→</string>
+    <string name="learning_bigram_count_format">×%1$d</string>
+    <string name="learning_token_bol">(line start)</string>
+    <string name="learning_token_enter">(enter)</string>
+    <string name="learning_delete">Forget</string>
+    <string name="learning_delete_title">Forget this suggestion?</string>
+    <string name="learning_delete_message">Stop suggesting %1$s after %2$s in %3$s?</string>
 
     <string name="settings_export">Export settings</string>
     <string name="settings_import">Import settings</string>
@@ -122,5 +131,10 @@
     <plurals name="shortcuts_summary_format">
         <item quantity="one">%1$d context group</item>
         <item quantity="other">%1$d context groups</item>
+    </plurals>
+
+    <plurals name="learning_context_count_format">
+        <item quantity="one">%1$d suggestion</item>
+        <item quantity="other">%1$d suggestions</item>
     </plurals>
 </resources>

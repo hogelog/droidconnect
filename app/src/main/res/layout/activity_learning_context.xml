@@ -15,7 +15,6 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             app:navigationIcon="@drawable/ic_close"
-            app:title="@string/learning_title"
             app:titleCentered="false" />
 
     </com.google.android.material.appbar.AppBarLayout>
@@ -30,33 +29,10 @@
         android:paddingBottom="32dp">
 
         <LinearLayout
+            android:id="@+id/list_bigrams"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:orientation="vertical" />
 
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                android:text="@string/learning_hint"
-                android:textAppearance="?attr/textAppearanceBodySmall"
-                android:textColor="?attr/colorOnSurfaceVariant" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_clear_learned"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/learning_clear"
-                style="@style/Widget.Material3.Button.TonalButton" />
-
-            <LinearLayout
-                android:id="@+id/list_learning_contexts"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:orientation="vertical" />
-
-        </LinearLayout>
     </ScrollView>
 </LinearLayout>

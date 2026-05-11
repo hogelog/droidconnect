@@ -73,10 +73,6 @@
     <string name="shortcuts_reset_defaults">Reset to defaults</string>
     <string name="shortcuts_reset_defaults_message">Replace all groups with the bundled defaults? Your current entries will be lost.</string>
     <string name="shortcuts_reset_defaults_confirm">Reset</string>
-    <string name="shortcuts_clear_learned">Clear learned suggestions</string>
-    <string name="shortcuts_clear_learned_message">Wipe the bigram counts that drive the dynamic suggestion row? The shortcut bar will start fresh and re-learn as you type.</string>
-    <string name="shortcuts_clear_learned_confirm">Clear</string>
-    <string name="shortcuts_clear_learned_done">Learned suggestions cleared</string>
     <string name="learned_delete_title">Delete suggestion</string>
     <string name="learned_delete_message">Remove \"%1$s\" from the learned suggestions for this context?</string>
     <string name="learned_delete_confirm">Delete</string>
@@ -103,6 +99,13 @@
     <string name="host_keys_forget">Forget</string>
     <string name="host_keys_forget_title">Forget host key?</string>
     <string name="host_keys_forget_message">Forget the stored key for %1$s:%2$d? The next connection to this server will prompt you to verify the new key.</string>
+
+    <string name="learning_title">Learned suggestions</string>
+    <string name="learning_hint">PocketSecureShell remembers which token most often follows each preceding token, per foreground command, and uses those bigram counts to drive the dynamic suggestion row above the keyboard.</string>
+    <string name="learning_clear">Clear learned suggestions</string>
+    <string name="learning_clear_message">Wipe the bigram counts that drive the dynamic suggestion row? The shortcut bar will start fresh and re-learn as you type.</string>
+    <string name="learning_clear_confirm">Clear</string>
+    <string name="learning_clear_done">Learned suggestions cleared</string>
 
     <string name="settings_export">Export settings</string>
     <string name="settings_import">Import settings</string>

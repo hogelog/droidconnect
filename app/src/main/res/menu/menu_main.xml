@@ -8,6 +8,11 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_learning"
+        android:title="@string/learning_title"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_export_settings"
         android:title="@string/settings_export"
         app:showAsAction="never" />

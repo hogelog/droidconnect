@@ -15,7 +15,7 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             app:navigationIcon="@drawable/ic_close"
-            app:title="@string/shortcuts_settings_title"
+            app:title="@string/learning_title"
             app:titleCentered="false" />
 
     </com.google.android.material.appbar.AppBarLayout>
@@ -30,7 +30,6 @@
         android:paddingBottom="32dp">
 
         <LinearLayout
-            android:id="@+id/container_root"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical">
@@ -38,31 +37,17 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="4dp"
-                android:text="@string/shortcuts_groups_hint"
+                android:layout_marginBottom="12dp"
+                android:text="@string/learning_hint"
                 android:textAppearance="?attr/textAppearanceBodySmall"
                 android:textColor="?attr/colorOnSurfaceVariant" />
 
-            <LinearLayout
-                android:id="@+id/list_context_groups"
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_clear_learned"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_add_context_group"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="@string/shortcuts_add_context_group_button"
-                style="@style/Widget.Material3.Button.TextButton" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_reset_defaults"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="32dp"
-                android:text="@string/shortcuts_reset_defaults"
+                android:layout_marginTop="8dp"
+                android:text="@string/learning_clear"
                 style="@style/Widget.Material3.Button.TonalButton" />
 
         </LinearLayout>

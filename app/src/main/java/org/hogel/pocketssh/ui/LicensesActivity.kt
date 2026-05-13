@@ -21,7 +21,7 @@ class LicensesActivity : AppCompatActivity() {
     // license directly without indirection.
     private val sections = listOf(
         Section(R.string.licenses_section_pocketsecureshell, R.raw.license_pocketsecureshell),
-        Section(R.string.licenses_section_termux, R.raw.license_apache2),
+        Section(R.string.licenses_section_termux, R.raw.license_termux),
         Section(R.string.licenses_section_sshlib, R.raw.license_sshlib),
         Section(R.string.licenses_section_androidx, R.raw.license_apache2),
         Section(R.string.licenses_section_material, R.raw.license_apache2),

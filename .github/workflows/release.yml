@@ -99,7 +99,6 @@ jobs:
 
       - name: Build release APK and AAB
         env:
-          SENTRY_DSN: ${{ vars.SENTRY_DSN }}
           RELEASE_VERSION: ${{ steps.version.outputs.value }}
           RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
           RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}

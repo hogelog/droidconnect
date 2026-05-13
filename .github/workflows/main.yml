@@ -110,7 +110,6 @@ jobs:
       - name: Publish AAB to Play Store internal track
         if: ${{ steps.gcloud-auth.outcome == 'success' }}
         env:
-          SENTRY_DSN: ${{ vars.SENTRY_DSN }}
           RELEASE_VERSION: ${{ steps.base-version.outputs.value }}
           RELEASE_VERSION_SUFFIX: ${{ steps.shortrev.outputs.value }}
           RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/release.keystore

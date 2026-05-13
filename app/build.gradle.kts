@@ -2,7 +2,6 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("com.android.application")
-    id("io.sentry.android.gradle")
     id("com.github.triplet.play")
 }
 
@@ -93,19 +92,6 @@ android {
         versionCode = appVersionCode
         versionName = appVersionName
 
-        // Sentry DSN is a public client-side identifier (kept in CI vars, not secrets).
-        // Wired through BuildConfig so PocketSshApplication can drive a manual
-        // SentryAndroid.init: auto-init is disabled in the manifest so the
-        // configuration callback (beforeSend scrubbing, attachment toggles,
-        // replay sample rates) is the single source of truth. An empty DSN
-        // makes the init call a no-op.
-        buildConfigField("String", "SENTRY_DSN", "\"${System.getenv("SENTRY_DSN") ?: ""}\"")
-        buildConfigField(
-            "String",
-            "SENTRY_RELEASE",
-            "\"$applicationId@$versionName+$versionCode\"",
-        )
-        buildConfigField("String", "SENTRY_DIST", "\"$gitShortRev\"")
         buildConfigField("String", "GIT_SHORT_REV", "\"$gitShortRev\"")
     }
 
@@ -138,6 +124,21 @@ android {
             // Lets debug and release variants coexist on the same device.
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+
+            // Sentry is debug-only — release builds carry no telemetry SDK at all.
+            // SENTRY_DSN is a public client-side identifier (kept in CI vars, not
+            // secrets). CrashReporting in the debug source set reads these and
+            // drives a manual SentryAndroid.init; auto-init is disabled in the
+            // debug manifest so the configuration callback (beforeSend scrubbing,
+            // attachment toggles, replay sample rates) is the single source of
+            // truth. An empty DSN makes the init call a no-op.
+            buildConfigField("String", "SENTRY_DSN", "\"${System.getenv("SENTRY_DSN") ?: ""}\"")
+            buildConfigField(
+                "String",
+                "SENTRY_RELEASE",
+                "\"org.hogel.pocketssh@$appVersionName+$appVersionCode\"",
+            )
+            buildConfigField("String", "SENTRY_DIST", "\"$gitShortRev\"")
         }
         release {
             isMinifyEnabled = true
@@ -174,13 +175,6 @@ configurations.configureEach {
     exclude(group = "com.google.errorprone", module = "error_prone_annotations")
 }
 
-// Symbol/mapping uploads are off until SENTRY_AUTH_TOKEN is wired up in CI.
-sentry {
-    autoUploadProguardMapping.set(false)
-    autoUploadNativeSymbols.set(false)
-    includeSourceContext.set(false)
-}
-
 play {
     track.set("internal")
     releaseStatus.set(com.github.triplet.gradle.androidpublisher.ReleaseStatus.COMPLETED)
@@ -202,7 +196,9 @@ dependencies {
     implementation("androidx.activity:activity-ktx:1.13.0")
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
-    implementation("io.sentry:sentry-android:8.41.0")
+    // Sentry is debug-only — release builds ship without the SDK so the app
+    // makes no telemetry phone-home in production.
+    debugImplementation("io.sentry:sentry-android:8.41.0")
 
     // Pinned to stabilize dependency locking: AGP's data binding transforms
     // resolve kotlin-stdlib-common at build time, but `--write-locks` doesn't

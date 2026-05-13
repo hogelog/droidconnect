@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+
+        <!-- Sentry ships only in debug builds. Disable its manifest-driven
+             auto-init so CrashReporting's explicit SentryAndroid.init is the
+             only configuration path. -->
+        <meta-data android:name="io.sentry.auto-init" android:value="false" />
+
+    </application>
+
+</manifest>

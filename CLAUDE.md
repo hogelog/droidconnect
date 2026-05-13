@@ -69,8 +69,13 @@ The submodule is pinned to termux-app v0.118.3.
 
 ## Telemetry
 
-Sentry is wired up only for crash reporting (auto-init via manifest meta-data). User-controlled
-values must never reach Sentry events or breadcrumbs:
+Sentry is **debug-only**. The SDK ships via `debugImplementation` and lives behind a
+`CrashReporting` indirection: `app/src/debug/java/.../CrashReporting.kt` does the manual
+`SentryAndroid.init`; `app/src/release/java/.../CrashReporting.kt` is a no-op. Release APKs
+contain no Sentry classes and make no telemetry phone-home. CI passes `SENTRY_DSN` only to
+debug-producing build steps (auto-init is disabled in `app/src/debug/AndroidManifest.xml`).
+
+Even in debug, user-controlled values must never reach Sentry events or breadcrumbs:
 
 - Connection target (host, port, username) and SSH key material (public key, fingerprints, host
   key bytes, signatures) are off-limits — do not pass them to `Sentry.captureException` /

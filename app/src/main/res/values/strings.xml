@@ -141,7 +141,7 @@
     <string name="licenses_title">Open-source licenses</string>
     <string name="licenses_section_pocketsecureshell">PocketSecureShell (MIT)</string>
     <string name="licenses_section_termux">Termux terminal-emulator and terminal-view (Apache 2.0)</string>
-    <string name="licenses_section_sshlib">sshlib — org.connectbot:sshlib (BSD-3-Clause + MIT)</string>
+    <string name="licenses_section_sshlib">sshlib (BSD-3-Clause + MIT)</string>
     <string name="licenses_section_androidx">AndroidX (Apache 2.0)</string>
     <string name="licenses_section_material">Material Components for Android (Apache 2.0)</string>
     <string name="licenses_section_kotlin">Kotlin standard library (Apache 2.0)</string>

@@ -58,6 +58,10 @@ hogelog. This page describes how the App handles user data.
 
 - `INTERNET` — required to connect to the SSH servers you specify.
 - `USE_BIOMETRIC` — required to authorize use of the on-device SSH private key.
+- `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_SPECIAL_USE` — required to keep the
+  SSH session alive while the App is in the background.
+- `POST_NOTIFICATIONS` — required on Android 13 and later to display the
+  ongoing-session notification shown by the foreground service above.
 
 ## Open source
 

@@ -1,0 +1,5 @@
+- Relicensed to MIT.
+- Added in-app open-source licenses screen.
+- Added "Open repository" item to the overflow menu.
+- "Include learned suggestions" in Export is now opt-in.
+- Sentry crash reporting is restricted to debug builds.

@@ -52,4 +52,4 @@ The debug APK will be produced at `app/build/outputs/apk/debug/app-debug.apk`.
 
 ## License
 
-GPLv3 - See [LICENSE](LICENSE)
+MIT - See [LICENSE](LICENSE).

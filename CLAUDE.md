@@ -89,4 +89,4 @@ Even in debug, user-controlled values must never reach Sentry events or breadcru
 
 ## License
 
-GPLv3 (due to Termux terminal-emulator/terminal-view dependency)
+MIT.

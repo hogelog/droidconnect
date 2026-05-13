@@ -145,4 +145,7 @@
     <string name="licenses_section_androidx">AndroidX (Apache 2.0)</string>
     <string name="licenses_section_material">Material Components for Android (Apache 2.0)</string>
     <string name="licenses_section_kotlin">Kotlin standard library (Apache 2.0)</string>
+
+    <string name="open_repository_title">Open repository</string>
+    <string name="open_repository_url">https://github.com/hogelog/pocket-secure-shell</string>
 </resources>

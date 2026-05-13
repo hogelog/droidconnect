@@ -51,6 +51,10 @@
             android:name=".ui.LearningContextActivity"
             android:parentActivityName=".ui.LearningSettingsActivity" />
 
+        <activity
+            android:name=".ui.LicensesActivity"
+            android:parentActivityName=".MainActivity" />
+
         <service
             android:name=".ssh.SshConnectionService"
             android:exported="false"

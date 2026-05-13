@@ -14,6 +14,7 @@ import android.text.InputFilter
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.TextView
@@ -157,8 +158,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun showExportSettingsDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_export_settings, null)
+        val checkbox = dialogView.findViewById<CheckBox>(R.id.check_include_learning)
         val text = dialogView.findViewById<TextView>(R.id.text_export_json)
-        text.text = SettingsBackup.export(this)
+
+        fun refresh() {
+            text.text = SettingsBackup.export(this, includeLearning = checkbox.isChecked)
+        }
+        checkbox.setOnCheckedChangeListener { _, _ -> refresh() }
+        refresh()
+
         AlertDialog.Builder(this)
             .setTitle(R.string.settings_export)
             .setView(dialogView)

@@ -148,4 +148,6 @@
 
     <string name="open_repository_title">Open repository</string>
     <string name="open_repository_url">https://github.com/hogelog/pocket-secure-shell</string>
+
+    <string name="settings_export_include_learning">Include learned suggestions</string>
 </resources>

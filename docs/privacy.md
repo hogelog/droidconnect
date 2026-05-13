@@ -23,9 +23,11 @@ hogelog. This page describes how the App handles user data.
   records frequency counts of tokens you have typed at the SSH prompt
   (per-foreground-command bigrams) in a local SQLite database. This corpus is
   effectively a partial history of shell commands you have entered. It stays in
-  the App's private storage and is never transmitted. Settings export includes
-  this corpus in plain JSON, so treat exported settings as sensitive. You can
-  remove individual entries via long-press on a suggestion button.
+  the App's private storage and is never transmitted. Settings export omits this
+  corpus by default; tick "Include learned suggestions" in the export dialog if
+  you want to carry it over to another device, and treat the exported JSON as
+  sensitive when you do. You can remove individual entries via long-press on a
+  suggestion button.
 
 ## Data sent to remote services
 

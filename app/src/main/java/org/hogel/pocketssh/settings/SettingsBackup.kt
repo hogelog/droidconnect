@@ -12,10 +12,14 @@ import org.json.JSONObject
 /**
  * Serializes user-configurable settings to a single JSON document so users can
  * transfer them between devices. The bundle covers connection-target defaults
- * (host/port/username, tmux toggle and prefix), the terminal font size, the
- * entire shortcut store (context groups, including their swipe and FAB
- * payloads), and the learned bigram counts that drive the dynamic suggestion
- * row.
+ * (host/port/username, tmux toggle and prefix), the terminal font size, and
+ * the entire shortcut store (context groups, including their swipe and FAB
+ * payloads).
+ *
+ * The learned bigram counts that drive the dynamic suggestion row are
+ * effectively a partial history of typed shell commands, so they are excluded
+ * from exports by default. Callers opt in by passing `includeLearning = true`
+ * to [export]; [import] always accepts payloads with or without the field.
  *
  * Excluded:
  *  - SSH private key — keystore-bound (TEE), can't leave the device. Users
@@ -30,7 +34,7 @@ object SettingsBackup {
      */
     private const val VERSION = 1
 
-    fun export(context: Context): String {
+    fun export(context: Context, includeLearning: Boolean = false): String {
         val prefs = context.getSharedPreferences(
             MainActivity.PREFS_NAME, Context.MODE_PRIVATE,
         )
@@ -44,7 +48,6 @@ object SettingsBackup {
             prefs.getString(MainActivity.KEY_TMUX_PREFIX, null)?.let { put("tmux_prefix", it) }
         }
         val groupsJson = ShortcutStore.encodeContextGroups(store.loadContextGroups())
-        val bigramsJson = encodeBigrams(BigramStore(context).snapshot())
 
         val terminalPrefs = context.getSharedPreferences(
             TerminalActivity.PREFS_TERMINAL, Context.MODE_PRIVATE,
@@ -55,13 +58,15 @@ object SettingsBackup {
             }
         }
 
-        return JSONObject()
+        val root = JSONObject()
             .put("version", VERSION)
             .put("connection", connectionJson)
             .put("terminal", terminalJson)
             .put("context_groups", groupsJson)
-            .put("bigrams", bigramsJson)
-            .toString(2)
+        if (includeLearning) {
+            root.put("bigrams", encodeBigrams(BigramStore(context).snapshot()))
+        }
+        return root.toString(2)
     }
 
     /**

@@ -54,7 +54,7 @@ hogelog. This page describes how the App handles user data.
 
 ## Open source
 
-PocketSecureShell is open source (GPL-3.0). Source code:
+PocketSecureShell is open source (MIT). Source code:
 [github.com/hogelog/pocket-secure-shell](https://github.com/hogelog/pocket-secure-shell).
 
 ## Contact

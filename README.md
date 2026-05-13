@@ -16,7 +16,7 @@ Requires Android 14 (API 34) or later.
 - Learned input suggestions per command, based on your past input
 - Image upload: pick an image to upload to the remote and insert the path at the cursor — built for handing images to Claude Code
 - Japanese IME input
-- Crash reporting that filters out SSH credentials, hostnames, and terminal contents (see [Privacy Policy](docs/privacy.md))
+- No telemetry in release builds — the App sends no analytics or crash reports of its own. Debug builds built locally from source include [Sentry](https://sentry.io) for crash reporting; the GitHub Releases / Play Store artifacts users install never do. Android's OS-level crash reporting via Google Play services may still apply on devices that have it enabled (see [Privacy Policy](docs/privacy.md))
 
 ## Install
 

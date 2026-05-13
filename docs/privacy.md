@@ -32,12 +32,20 @@ hogelog. This page describes how the App handles user data.
 - **SSH traffic** — When you start a session, terminal input and output are
   exchanged directly with the SSH server you specify. The App does not relay
   traffic through any intermediary.
-- **Crash and error reports** — The App sends crash and error reports to
-  [Sentry](https://sentry.io). Reports include the exception details, device
-  model, OS version, and app version. They do **not** include SSH credentials,
-  private keys, terminal contents, hostnames, or usernames. See
-  [Sentry's privacy policy](https://sentry.io/privacy/) for how Sentry handles
-  this data.
+- **No app telemetry** — The App itself does not send crash reports,
+  analytics, or any other telemetry to remote services.
+- **Android-level crash reporting (Google Play Console)** — Independent of
+  the App, Android's OS-level crash and ANR reporting via Google Play services
+  may collect data on devices where the user has opted into sharing usage and
+  diagnostics. This happens at the operating-system level and applies to both
+  Play-installed and sideloaded versions whenever Play services are present
+  and that setting is enabled; devices without Google Play services (e.g.
+  de-Googled ROMs) are not covered. The App does not control this channel.
+- **Debug builds** — Debug APKs built locally from source include
+  [Sentry](https://sentry.io) for crash reporting. Release builds (the APK/AAB
+  published on GitHub Releases and the Google Play Store) do not. Crash
+  payloads from debug builds are scrubbed to drop SSH credentials, hostnames,
+  usernames, and terminal contents before being sent.
 
 ## Permissions
 

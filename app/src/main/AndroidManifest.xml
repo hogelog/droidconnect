@@ -15,10 +15,6 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.PocketSecureShell">
 
-        <!-- Disable Sentry's manifest-driven auto-init so PocketSshApplication's
-             explicit SentryAndroid.init is the only configuration path. -->
-        <meta-data android:name="io.sentry.auto-init" android:value="false" />
-
         <activity
             android:name=".MainActivity"
             android:exported="true">

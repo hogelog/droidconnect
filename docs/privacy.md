@@ -19,6 +19,11 @@ hogelog. This page describes how the App handles user data.
   the Android Keystore (hardware-backed when available). The Keystore API does
   not expose the raw key material; the private key cannot be exported off the
   device by anyone, including the user.
+- **Key signing authorization** — Signing an SSH authentication handshake with
+  the on-device private key requires biometric authentication (or a device
+  lock-screen unlock). The authorization is valid for 30 minutes; new sessions
+  opened within that window reuse it without re-prompting. Lock the device if
+  you want every connection to require a fresh authentication.
 - **Learned input suggestions** — to drive the dynamic suggestion row, the App
   records frequency counts of tokens you have typed at the SSH prompt
   (per-foreground-command bigrams) in a local SQLite database. This corpus is

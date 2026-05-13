@@ -26,4 +26,9 @@
         android:id="@+id/action_licenses"
         android:title="@string/licenses_title"
         app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_open_repository"
+        android:title="@string/open_repository_title"
+        app:showAsAction="never" />
 </menu>

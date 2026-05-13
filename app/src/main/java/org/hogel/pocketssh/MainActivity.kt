@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.SharedPreferences
+import android.net.Uri
 import android.os.Bundle
 import android.os.IBinder
 import android.text.InputFilter
@@ -145,6 +146,10 @@ class MainActivity : AppCompatActivity() {
         }
         R.id.action_licenses -> {
             startActivity(Intent(this, LicensesActivity::class.java))
+            true
+        }
+        R.id.action_open_repository -> {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.open_repository_url))))
             true
         }
         else -> super.onOptionsItemSelected(item)

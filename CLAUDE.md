@@ -90,3 +90,9 @@ Even in debug, user-controlled values must never reach Sentry events or breadcru
 ## License
 
 MIT.
+
+When you add or remove a dependency in `app/build.gradle.kts`, also update
+the `sections` list in `LicensesActivity` (and, if a new license type appears,
+drop its full text under `app/src/main/res/raw/`). The in-app "Open-source
+licenses" screen is the binary-side attribution channel, so a missing entry
+means missing attribution.

@@ -29,6 +29,7 @@ import org.hogel.pocketssh.ssh.SshConnectionService
 import org.hogel.pocketssh.ssh.SshKeyManager
 import org.hogel.pocketssh.ui.HostKeysSettingsActivity
 import org.hogel.pocketssh.ui.LearningSettingsActivity
+import org.hogel.pocketssh.ui.LicensesActivity
 import org.hogel.pocketssh.ui.ShortcutsSettingsActivity
 import org.hogel.pocketssh.ui.TerminalActivity
 
@@ -140,6 +141,10 @@ class MainActivity : AppCompatActivity() {
         }
         R.id.action_import_settings -> {
             showImportSettingsDialog()
+            true
+        }
+        R.id.action_licenses -> {
+            startActivity(Intent(this, LicensesActivity::class.java))
             true
         }
         else -> super.onOptionsItemSelected(item)

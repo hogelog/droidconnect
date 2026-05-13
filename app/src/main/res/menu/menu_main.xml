@@ -21,4 +21,9 @@
         android:id="@+id/action_import_settings"
         android:title="@string/settings_import"
         app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_licenses"
+        android:title="@string/licenses_title"
+        app:showAsAction="never" />
 </menu>

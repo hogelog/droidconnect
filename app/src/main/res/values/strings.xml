@@ -51,6 +51,8 @@
     <string name="swipe_left">Swipe left</string>
     <string name="swipe_right">Swipe right</string>
     <string name="image_upload_in_progress">Uploading image…</string>
+    <string name="image_upload_cancel">Cancel</string>
+    <string name="image_upload_cancelled">Image upload cancelled</string>
     <string name="image_upload_failed">Image upload failed: %1$s</string>
     <string name="image_upload_read_failed">Failed to read image</string>
     <string name="image_upload_not_connected">Not connected</string>

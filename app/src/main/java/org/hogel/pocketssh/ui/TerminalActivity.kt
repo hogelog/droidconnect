@@ -900,6 +900,7 @@ private fun styleModifierButton(button: Button) {
             clearStickyModifiers()
         }
         imeProxy.onHardwareKey = { keyCode, event -> processHardwareKey(keyCode, event) }
+        imeProxy.onImageContent = ::onImagePicked
     }
 
     private fun updatePreedit(text: CharSequence) {

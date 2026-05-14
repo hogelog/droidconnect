@@ -650,6 +650,13 @@ class TerminalActivity : AppCompatActivity() {
         val uploadFuture = svc.uploadBytes(bytes, filename, REMOTE_TMP_DIR) { error ->
             if (cancelled.get()) return@uploadBytes
             uploadDialog = null
+            if (error == null) {
+                // Kick off the SSH write before dismiss() so the SSH round-trip
+                // overlaps the dialog's exit animation; otherwise the path
+                // appears noticeably after the dialog disappears.
+                val pathRef = "$REMOTE_TMP_DIR/$filename "
+                writeToSsh(pathRef.toByteArray(Charsets.UTF_8))
+            }
             dialog.dismiss()
             if (error != null) {
                 Toast.makeText(
@@ -657,10 +664,7 @@ class TerminalActivity : AppCompatActivity() {
                     getString(R.string.image_upload_failed, error.message ?: ""),
                     Toast.LENGTH_LONG,
                 ).show()
-                return@uploadBytes
             }
-            val pathRef = "$REMOTE_TMP_DIR/$filename "
-            writeToSsh(pathRef.toByteArray(Charsets.UTF_8))
         }
 
         dialog.setButton(

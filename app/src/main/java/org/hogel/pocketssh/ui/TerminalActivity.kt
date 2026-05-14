@@ -253,8 +253,8 @@ class TerminalActivity : AppCompatActivity() {
     }
 
     private val imagePickerLauncher = registerForActivityResult(
-        ActivityResultContracts.PickVisualMedia(),
-    ) { uri -> if (uri != null) onImagePicked(uri) }
+        ActivityResultContracts.PickMultipleVisualMedia(),
+    ) { uris -> if (uris.isNotEmpty()) onImagesPicked(uris) }
 
     private val outputListener: (ByteArray) -> Unit = ::handleSshOutput
 
@@ -585,34 +585,55 @@ class TerminalActivity : AppCompatActivity() {
     }
 
     /**
-     * Upload the picked image to the remote host via SCP and, on success,
-     * type its `/tmp/...` path into the SSH stdin so the user can submit
-     * it to Claude Code by pressing Enter.
+     * Upload the picked image(s) to the remote host via SCP and, on success,
+     * type their `/tmp/...` paths (space-separated, with a trailing space) into
+     * the SSH stdin so the user can submit them to Claude Code by pressing Enter.
      */
-    private fun onImagePicked(uri: Uri) {
+    private fun onImagesPicked(uris: List<Uri>) {
         val svc = service
         if (svc == null || svc.state != SshConnectionService.State.CONNECTED) {
             Toast.makeText(this, R.string.image_upload_not_connected, Toast.LENGTH_SHORT).show()
             return
         }
         val resolver = contentResolver
-        val mime = resolver.getType(uri).orEmpty()
-        val ext = extensionForMime(mime)
         val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).apply {
             timeZone = TimeZone.getTimeZone("Asia/Tokyo")
         }.format(Date())
-        val filename = "pocketssh-$timestamp.$ext"
-        val bytes = try {
-            resolver.openInputStream(uri)?.use { it.readBytes() }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to read picked image", e)
-            null
-        }
-        if (bytes == null) {
-            Toast.makeText(this, R.string.image_upload_read_failed, Toast.LENGTH_SHORT).show()
-            return
+        val staged = ArrayList<Pair<String, ByteArray>>(uris.size)
+        uris.forEachIndexed { index, uri ->
+            val mime = resolver.getType(uri).orEmpty()
+            val ext = extensionForMime(mime)
+            // Disambiguate within a batch — the timestamp alone has 1-second resolution.
+            val suffix = if (uris.size == 1) "" else "-${index + 1}"
+            val filename = "pocketssh-$timestamp$suffix.$ext"
+            val bytes = try {
+                resolver.openInputStream(uri)?.use { it.readBytes() }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to read picked image", e)
+                null
+            }
+            if (bytes == null) {
+                Toast.makeText(this, R.string.image_upload_read_failed, Toast.LENGTH_SHORT).show()
+                return
+            }
+            staged.add(filename to bytes)
         }
         Toast.makeText(this, R.string.image_upload_in_progress, Toast.LENGTH_SHORT).show()
+        uploadStagedImages(svc, staged, 0, ArrayList(staged.size))
+    }
+
+    private fun uploadStagedImages(
+        svc: SshConnectionService,
+        staged: List<Pair<String, ByteArray>>,
+        index: Int,
+        uploaded: ArrayList<String>,
+    ) {
+        if (index >= staged.size) {
+            val pathRef = uploaded.joinToString(separator = " ", postfix = " ")
+            writeToSsh(pathRef.toByteArray(Charsets.UTF_8))
+            return
+        }
+        val (filename, bytes) = staged[index]
         svc.uploadBytes(bytes, filename, REMOTE_TMP_DIR) { error ->
             if (error != null) {
                 Toast.makeText(
@@ -622,8 +643,8 @@ class TerminalActivity : AppCompatActivity() {
                 ).show()
                 return@uploadBytes
             }
-            val pathRef = "$REMOTE_TMP_DIR/$filename "
-            writeToSsh(pathRef.toByteArray(Charsets.UTF_8))
+            uploaded.add("$REMOTE_TMP_DIR/$filename")
+            uploadStagedImages(svc, staged, index + 1, uploaded)
         }
     }
 

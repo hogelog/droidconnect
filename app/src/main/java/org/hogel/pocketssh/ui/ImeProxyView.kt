@@ -1,6 +1,7 @@
 package org.hogel.pocketssh.ui
 
 import android.content.Context
+import android.net.Uri
 import android.text.InputType
 import android.util.AttributeSet
 import android.view.KeyEvent
@@ -8,6 +9,10 @@ import android.view.View
 import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
+import androidx.core.view.ContentInfoCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.inputmethod.EditorInfoCompat
+import androidx.core.view.inputmethod.InputConnectionCompat
 
 /**
  * Transparent focusable View that owns the IME connection on the user's behalf.
@@ -19,6 +24,10 @@ import android.view.inputmethod.InputConnection
  * [commitText] / [finishComposingText] and surface the composing string to a
  * preedit overlay while still routing committed text and hardware key events
  * through the existing terminal pipeline.
+ *
+ * The view also declares image MIME support via [EditorInfoCompat.setContentMimeTypes]
+ * so Gboard's clipboard suggestion bar offers recent screenshots/images as
+ * paste chips; received content is forwarded to [onImageContent].
  */
 class ImeProxyView @JvmOverloads constructor(
     context: Context,
@@ -38,12 +47,23 @@ class ImeProxyView @JvmOverloads constructor(
      */
     var onHardwareKey: (Int, KeyEvent) -> Boolean = { _, _ -> false }
 
+    /**
+     * Called when the IME inserts image content (e.g. tapping a clipboard
+     * screenshot chip in Gboard's suggestion bar). The handler must read the
+     * URI synchronously — the framework releases the temporary URI permission
+     * as soon as the receive callback returns.
+     */
+    var onImageContent: (Uri) -> Unit = {}
+
     init {
         isFocusable = true
         isFocusableInTouchMode = true
         // Background must be drawable for focus on some devices but we want it
         // visually invisible — a fully transparent colour is sufficient.
         setBackgroundColor(0x00000000)
+        ViewCompat.setOnReceiveContentListener(this, SUPPORTED_IMAGE_MIME_TYPES) { _, payload ->
+            handleReceivedContent(payload)
+        }
     }
 
     override fun onCheckIsTextEditor(): Boolean = true
@@ -54,7 +74,22 @@ class ImeProxyView @JvmOverloads constructor(
         // docked instead of taking over the screen in landscape.
         outAttrs.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_NORMAL
         outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN or EditorInfo.IME_FLAG_NO_EXTRACT_UI
-        return ProxyInputConnection(this, true)
+        EditorInfoCompat.setContentMimeTypes(outAttrs, SUPPORTED_IMAGE_MIME_TYPES)
+        val ic: InputConnection = ProxyInputConnection(this, true)
+        return InputConnectionCompat.createWrapper(this, ic, outAttrs)
+    }
+
+    private fun handleReceivedContent(payload: ContentInfoCompat): ContentInfoCompat? {
+        val parts = payload.partition { item -> item.uri != null }
+        val images = parts.first
+        if (images != null) {
+            val clip = images.clip
+            for (i in 0 until clip.itemCount) {
+                val uri = clip.getItemAt(i).uri ?: continue
+                onImageContent(uri)
+            }
+        }
+        return parts.second
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
@@ -130,5 +165,18 @@ class ImeProxyView @JvmOverloads constructor(
             }
             return super.sendKeyEvent(event)
         }
+    }
+
+    private companion object {
+        // Mirrors the MIME branches in TerminalActivity.extensionForMime so any
+        // chip Gboard surfaces resolves to a known remote-side extension.
+        val SUPPORTED_IMAGE_MIME_TYPES = arrayOf(
+            "image/png",
+            "image/jpeg",
+            "image/webp",
+            "image/heic",
+            "image/heif",
+            "image/gif",
+        )
     }
 }

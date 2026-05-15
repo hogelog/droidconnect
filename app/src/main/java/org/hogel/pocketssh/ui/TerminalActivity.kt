@@ -489,9 +489,20 @@ class TerminalActivity : AppCompatActivity() {
         val visible = useTmux && windows.isNotEmpty()
         binding.windowTabsBar.visibility = if (visible) View.VISIBLE else View.GONE
         if (!visible) return
+        val tabHorizontalPaddingPx = dpToPx(6)
+        val tabMinDimensionPx = dpToPx(32)
         for (window in windows) {
             val label = getString(R.string.window_tab_label, window.index, window.name)
             val tab = makeAuxButton(label) { selectTmuxWindow(window.index) }
+            // Tabs are denser than the shortcut bar — smaller font, tighter
+            // padding, and a 32dp minimum so a 10-window strip still fits
+            // without horizontal scroll on a phone.
+            tab.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            tab.setPadding(tabHorizontalPaddingPx, 0, tabHorizontalPaddingPx, 0)
+            tab.minWidth = tabMinDimensionPx
+            tab.minimumWidth = tabMinDimensionPx
+            tab.minHeight = tabMinDimensionPx
+            tab.minimumHeight = tabMinDimensionPx
             styleModifierButton(tab)
             tab.isActivated = window.active
             container.addView(tab, auxButtonLayoutParams())

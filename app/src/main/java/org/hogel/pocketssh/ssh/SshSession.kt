@@ -86,16 +86,23 @@ class SshSession(
             // Status bar is replaced by the native TabLayout, so hide tmux's
             // own one. Users with a customized status will notice this.
             append("set-option -g status off \\; ")
-            // Force re-evaluation of set-titles-string when the window list
-            // changes. tmux re-emits the title on redraw, but window add /
-            // remove / rename do not by themselves invalidate the cached
-            // title of the active pane, so the new window list would not
-            // reach the client until the next focus change without these
-            // hooks. `-a` appends to any user-defined hook of the same name.
-            append("set-hook -ag window-linked 'refresh-client' \\; ")
-            append("set-hook -ag window-unlinked 'refresh-client' \\; ")
-            append("set-hook -ag window-renamed 'refresh-client' \\; ")
-            append("set-hook -ag session-window-changed 'refresh-client' \\; ")
+            // No `set-hook ... refresh-client` here. The first cut wired
+            // window-linked / window-unlinked / window-renamed to
+            // `refresh-client` to force a title re-emit, but with
+            // `automatic-rename on` (the tmux default) `window-renamed`
+            // fires every time a pane's foreground command changes, and
+            // `refresh-client` dumps the entire pane contents to the
+            // attached client. Active sessions then flood the SSH channel
+            // fast enough to fill the server's send buffer; tmux blocks on
+            // write, can no longer service input from stdin, and the
+            // client sees a permanently frozen terminal and tab strip.
+            //
+            // We rely on the natural triggers instead: switching window
+            // (create / close / `prefix n` / tab tap) changes the active
+            // pane, which changes `pane_current_command`, which marks the
+            // title dirty and re-emits it. Renaming a non-active window
+            // lags until the next redraw cycle picks it up — acceptable for
+            // a tab strip that is mostly used for switch, not for inspect.
             append("new-session -A -s ")
             append(TMUX_SESSION_NAME)
         }

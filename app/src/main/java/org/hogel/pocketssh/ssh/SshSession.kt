@@ -7,6 +7,7 @@ import com.trilead.ssh2.Session
 import com.trilead.ssh2.auth.SignatureProxy
 import java.io.InputStream
 import java.io.OutputStream
+import org.hogel.pocketssh.tmux.TmuxTitle
 
 /** SSH connection backed by sshlib (Trilead SSH2). */
 class SshSession(
@@ -72,13 +73,29 @@ class SshSession(
         if (!useTmux) return null
 
         val inner = buildString {
-            // Configure tmux to broadcast the active pane's foreground
-            // command as the OSC window title so the client can detect the
-            // running app and surface app-specific shortcut keys. Chained
-            // into one tmux invocation so the options apply to the same
-            // server we then attach to.
+            // Configure tmux to broadcast the active pane's foreground command
+            // plus the session's window list as the OSC window title, so the
+            // client can render a native tab strip without a second control
+            // channel. See [TmuxTitle] for the wire format. Chained into one
+            // tmux invocation so the options apply to the same server we then
+            // attach to.
             append("tmux set-option -g set-titles on \\; ")
-            append("set-option -g set-titles-string \"#{pane_current_command}\" \\; ")
+            append("set-option -g set-titles-string \"")
+            append(TmuxTitle.TMUX_TITLE_FORMAT)
+            append("\" \\; ")
+            // Status bar is replaced by the native TabLayout, so hide tmux's
+            // own one. Users with a customized status will notice this.
+            append("set-option -g status off \\; ")
+            // Force re-evaluation of set-titles-string when the window list
+            // changes. tmux re-emits the title on redraw, but window add /
+            // remove / rename do not by themselves invalidate the cached
+            // title of the active pane, so the new window list would not
+            // reach the client until the next focus change without these
+            // hooks. `-a` appends to any user-defined hook of the same name.
+            append("set-hook -ag window-linked 'refresh-client' \\; ")
+            append("set-hook -ag window-unlinked 'refresh-client' \\; ")
+            append("set-hook -ag window-renamed 'refresh-client' \\; ")
+            append("set-hook -ag session-window-changed 'refresh-client' \\; ")
             append("new-session -A -s ")
             append(TMUX_SESSION_NAME)
         }

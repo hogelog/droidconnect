@@ -61,6 +61,8 @@ import org.hogel.pocketssh.ssh.BiometricAuthenticator
 import org.hogel.pocketssh.ssh.HostKeyPrompt
 import org.hogel.pocketssh.ssh.SshConnectionService
 import org.hogel.pocketssh.ssh.SshKeyManager
+import org.hogel.pocketssh.tmux.TmuxTitle
+import org.hogel.pocketssh.tmux.TmuxWindow
 import com.termux.terminal.KeyHandler
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession
@@ -318,7 +320,7 @@ class TerminalActivity : AppCompatActivity() {
             // per-app shortcut row survives even when the title OSC has rolled
             // out of the buffer.
             useTmux = svc.useTmux
-            applyContext(svc.lastTitle ?: lastAppContext)
+            applyTitle(svc.lastTitle)
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
@@ -354,6 +356,8 @@ class TerminalActivity : AppCompatActivity() {
         // (the "always" group). The FAB and per-app rows fill in once the
         // service binds and reports useTmux / lastTitle.
         applyContext(null)
+        applyWindowList(emptyList())
+        binding.windowTabsNew.setOnClickListener { openNewTmuxWindow() }
         binding.fabMain.setOnClickListener { setFabExpanded(!fabExpanded) }
         setFabExpanded(false)
 
@@ -409,6 +413,62 @@ class TerminalActivity : AppCompatActivity() {
         resolved = shortcutStore.loadContextGroups().resolve(useTmux, app)
         rebuildShortcutBar()
         rebuildFab(resolved.fabRows)
+    }
+
+    /**
+     * Parse a raw OSC title and fan out to the per-app context path and the
+     * native window tab strip. Called from [onTitleChanged] and from the
+     * service-bind path on activity recreation. When the raw title is null
+     * (service has nothing cached yet) the cached [lastAppContext] keeps the
+     * shortcut bar populated and the tab strip stays as-is.
+     */
+    private fun applyTitle(rawTitle: String?) {
+        val parsed = TmuxTitle.parse(rawTitle)
+        applyContext(parsed.command ?: lastAppContext)
+        applyWindowList(parsed.windows)
+    }
+
+    /**
+     * Rebuild the native tmux window tab strip. Hidden when tmux is off or
+     * the list is empty (initial state before tmux has emitted a title).
+     * The active tab is highlighted via the `state_activated` branch of
+     * `bg_aux_modifier`, the same drawable used by the sticky Ctrl button.
+     */
+    private fun applyWindowList(windows: List<TmuxWindow>) {
+        val container = binding.windowTabs
+        container.removeAllViews()
+        val visible = useTmux && windows.isNotEmpty()
+        binding.windowTabsBar.visibility = if (visible) View.VISIBLE else View.GONE
+        if (!visible) return
+        for (window in windows) {
+            val label = getString(R.string.window_tab_label, window.index, window.name)
+            val tab = makeAuxButton(label) { selectTmuxWindow(window.index) }
+            styleModifierButton(tab)
+            tab.isActivated = window.active
+            container.addView(tab, auxButtonLayoutParams())
+        }
+    }
+
+    /**
+     * Send the tmux key sequence that selects window [index]. Indices 0..9
+     * map to `prefix + digit`; higher indices go through `prefix : select-
+     * window -t N <Enter>` because tmux's default key table only binds
+     * single digits.
+     */
+    private fun selectTmuxWindow(index: Int) {
+        val prefix = readTmuxPrefixByte()
+        if (index in 0..9) {
+            writeToSsh(byteArrayOf(prefix, ('0'.code + index).toByte()))
+        } else {
+            writeToSsh(byteArrayOf(prefix))
+            writeToSsh(":select-window -t $index\r".toByteArray(Charsets.UTF_8))
+        }
+    }
+
+    /** Send `prefix c` to create a new tmux window. */
+    private fun openNewTmuxWindow() {
+        val prefix = readTmuxPrefixByte()
+        writeToSsh(byteArrayOf(prefix, 'c'.code.toByte()))
     }
 
     /**
@@ -1390,7 +1450,7 @@ private fun styleModifierButton(button: Button) {
             // up the active app context without waiting for tmux to re-emit
             // the title OSC (it only does so on changes).
             service?.lastTitle = title
-            applyContext(title)
+            applyTitle(title)
         }
         override fun onSessionFinished(finishedSession: TerminalSession) {}
         override fun onCopyTextToClipboard(session: TerminalSession, text: String?) {

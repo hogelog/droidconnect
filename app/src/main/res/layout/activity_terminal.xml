@@ -81,6 +81,42 @@
         </FrameLayout>
 
         <LinearLayout
+            android:id="@+id/window_tabs_bar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/colorSurface"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <HorizontalScrollView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:fillViewport="true"
+                android:isScrollContainer="false">
+
+                <LinearLayout
+                    android:id="@+id/window_tabs"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal" />
+
+            </HorizontalScrollView>
+
+            <Button
+                android:id="@+id/window_tabs_new"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/window_new"
+                android:minWidth="32dp"
+                android:minHeight="32dp"
+                android:paddingHorizontal="6dp"
+                android:text="@string/window_new_label"
+                android:textSize="12sp" />
+
+        </LinearLayout>
+
+        <LinearLayout
             android:id="@+id/shortcut_bar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

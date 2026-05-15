@@ -13,7 +13,9 @@ import android.content.pm.PackageManager
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import android.util.TypedValue
@@ -61,6 +63,8 @@ import org.hogel.pocketssh.ssh.BiometricAuthenticator
 import org.hogel.pocketssh.ssh.HostKeyPrompt
 import org.hogel.pocketssh.ssh.SshConnectionService
 import org.hogel.pocketssh.ssh.SshKeyManager
+import org.hogel.pocketssh.tmux.TmuxTitle
+import org.hogel.pocketssh.tmux.TmuxWindow
 import com.termux.terminal.KeyHandler
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession
@@ -216,6 +220,35 @@ class TerminalActivity : AppCompatActivity() {
     // without waiting for tmux to re-emit the title OSC.
     private var lastAppContext: String? = null
 
+    // Most recent raw OSC title (whatever bytes tmux sent us, before
+    // [TmuxTitle.parse]). Used to short-circuit [applyTitle] when the same
+    // title is replayed during attach or when tmux re-emits an unchanged
+    // title from one of our redraw hooks — both happen often enough that
+    // rebuilding the shortcut bar and tab strip for each one stalls the UI
+    // thread on resume.
+    private var lastRawTitle: String? = null
+
+    // Cached parse of [lastRawTitle].windows so [applyWindowList] can no-op
+    // when only the command part of the title changed. Tab construction
+    // (Button.inflate × N) is non-trivial; skipping when the list is
+    // unchanged is the main win.
+    private var lastWindows: List<TmuxWindow> = emptyList()
+
+    // Coalesce title-driven UI rebuilds within a single UI tick. The
+    // terminal emulator's `append` fires `onTitleChanged` synchronously
+    // for every OSC title in the byte stream, and a backlog-replay chunk
+    // can carry many of them; without coalescing each one would run the
+    // full shortcut-bar + tab-strip rebuild on the main thread.
+    // [pendingTitleHandler] schedules a single deferred [applyTitle]
+    // against the latest cached title (via [SshConnectionService.lastTitle])
+    // after the current chunk's `append` returns.
+    private val pendingTitleHandler = Handler(Looper.getMainLooper())
+    private val pendingTitleRunnable = Runnable {
+        pendingTitleUpdate = false
+        applyTitle(service?.lastTitle)
+    }
+    private var pendingTitleUpdate = false
+
     // Last (cols, rows) reported to the SSH peer. Used to suppress redundant
     // resize packets when a layout pass doesn't actually change the visible
     // cell grid.
@@ -318,7 +351,7 @@ class TerminalActivity : AppCompatActivity() {
             // per-app shortcut row survives even when the title OSC has rolled
             // out of the buffer.
             useTmux = svc.useTmux
-            applyContext(svc.lastTitle ?: lastAppContext)
+            applyTitle(svc.lastTitle)
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
@@ -354,6 +387,8 @@ class TerminalActivity : AppCompatActivity() {
         // (the "always" group). The FAB and per-app rows fill in once the
         // service binds and reports useTmux / lastTitle.
         applyContext(null)
+        applyWindowList(emptyList())
+        binding.windowTabsNew.setOnClickListener { openNewTmuxWindow() }
         binding.fabMain.setOnClickListener { setFabExpanded(!fabExpanded) }
         setFabExpanded(false)
 
@@ -409,6 +444,91 @@ class TerminalActivity : AppCompatActivity() {
         resolved = shortcutStore.loadContextGroups().resolve(useTmux, app)
         rebuildShortcutBar()
         rebuildFab(resolved.fabRows)
+    }
+
+    /**
+     * Parse a raw OSC title and fan out to the per-app context path and the
+     * native window tab strip. Called from [onTitleChanged] and from the
+     * service-bind path on activity recreation. When the raw title is null
+     * (service has nothing cached yet) the cached [lastAppContext] keeps the
+     * shortcut bar populated and the tab strip stays as-is.
+     *
+     * Identical consecutive raw titles short-circuit immediately — that
+     * matters because (a) backlog replay on resume hits this method many
+     * times with the same bytes, and (b) our `refresh-client` hooks make
+     * tmux re-emit titles even when neither the command nor the window list
+     * actually moved. Both the shortcut bar rebuild and the tab strip
+     * rebuild are expensive enough that doing them per-replay-chunk visibly
+     * freezes the UI thread.
+     */
+    private fun applyTitle(rawTitle: String?) {
+        if (rawTitle == lastRawTitle) return
+        lastRawTitle = rawTitle
+        val parsed = TmuxTitle.parse(rawTitle)
+        val newCommand = parsed.command ?: lastAppContext
+        if (newCommand != lastAppContext) applyContext(newCommand)
+        applyWindowList(parsed.windows)
+    }
+
+    /**
+     * Rebuild the native tmux window tab strip. Hidden when tmux is off or
+     * the list is empty (initial state before tmux has emitted a title).
+     * The active tab is highlighted via the `state_activated` branch of
+     * `bg_aux_modifier`, the same drawable used by the sticky Ctrl button.
+     *
+     * Idempotent on an unchanged window list — [applyTitle] dedupes raw
+     * titles, but a title where only the command changed (active pane's
+     * `pane_current_command` flipped, window list intact) still lands here
+     * with the same list, and rebuilding the buttons would be wasted work.
+     */
+    private fun applyWindowList(windows: List<TmuxWindow>) {
+        if (windows == lastWindows) return
+        lastWindows = windows
+        val container = binding.windowTabs
+        container.removeAllViews()
+        val visible = useTmux && windows.isNotEmpty()
+        binding.windowTabsBar.visibility = if (visible) View.VISIBLE else View.GONE
+        if (!visible) return
+        val tabHorizontalPaddingPx = dpToPx(6)
+        val tabMinDimensionPx = dpToPx(32)
+        for (window in windows) {
+            val label = getString(R.string.window_tab_label, window.index, window.name)
+            val tab = makeAuxButton(label) { selectTmuxWindow(window.index) }
+            // Tabs are denser than the shortcut bar — smaller font, tighter
+            // padding, and a 32dp minimum so a 10-window strip still fits
+            // without horizontal scroll on a phone.
+            tab.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            tab.setPadding(tabHorizontalPaddingPx, 0, tabHorizontalPaddingPx, 0)
+            tab.minWidth = tabMinDimensionPx
+            tab.minimumWidth = tabMinDimensionPx
+            tab.minHeight = tabMinDimensionPx
+            tab.minimumHeight = tabMinDimensionPx
+            styleModifierButton(tab)
+            tab.isActivated = window.active
+            container.addView(tab, auxButtonLayoutParams())
+        }
+    }
+
+    /**
+     * Send the tmux key sequence that selects window [index]. Indices 0..9
+     * map to `prefix + digit`; higher indices go through `prefix : select-
+     * window -t N <Enter>` because tmux's default key table only binds
+     * single digits.
+     */
+    private fun selectTmuxWindow(index: Int) {
+        val prefix = readTmuxPrefixByte()
+        if (index in 0..9) {
+            writeToSsh(byteArrayOf(prefix, ('0'.code + index).toByte()))
+        } else {
+            writeToSsh(byteArrayOf(prefix))
+            writeToSsh(":select-window -t $index\r".toByteArray(Charsets.UTF_8))
+        }
+    }
+
+    /** Send `prefix c` to create a new tmux window. */
+    private fun openNewTmuxWindow() {
+        val prefix = readTmuxPrefixByte()
+        writeToSsh(byteArrayOf(prefix, 'c'.code.toByte()))
     }
 
     /**
@@ -1367,6 +1487,7 @@ private fun styleModifierButton(button: Button) {
     override fun onDestroy() {
         uploadDialog?.dismiss()
         uploadDialog = null
+        pendingTitleHandler.removeCallbacks(pendingTitleRunnable)
         if (bound) {
             service?.detachOutputListener()
             service?.removeStatusListener(statusListener)
@@ -1388,9 +1509,13 @@ private fun styleModifierButton(button: Button) {
             val title = changedSession.title
             // Cache on the service so a subsequent activity instance can pick
             // up the active app context without waiting for tmux to re-emit
-            // the title OSC (it only does so on changes).
+            // the title OSC (it only does so on changes). Cache eagerly so
+            // the deferred runnable always sees the latest title.
             service?.lastTitle = title
-            applyContext(title)
+            if (!pendingTitleUpdate) {
+                pendingTitleUpdate = true
+                pendingTitleHandler.post(pendingTitleRunnable)
+            }
         }
         override fun onSessionFinished(finishedSession: TerminalSession) {}
         override fun onCopyTextToClipboard(session: TerminalSession, text: String?) {

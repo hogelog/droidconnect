@@ -6,6 +6,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Context
+import android.content.DialogInterface
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
@@ -17,6 +18,7 @@ import android.os.SystemClock
 import android.util.Log
 import android.util.TypedValue
 import android.view.GestureDetector
+import android.view.Gravity
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -27,6 +29,7 @@ import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.Toast
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -41,6 +44,7 @@ import java.util.Locale
 import java.util.TimeZone
 import java.util.concurrent.Executors
 import java.util.concurrent.SynchronousQueue
+import java.util.concurrent.atomic.AtomicBoolean
 import org.hogel.pocketssh.R
 import org.hogel.pocketssh.databinding.ActivityTerminalBinding
 import org.hogel.pocketssh.learning.BigramStore
@@ -190,6 +194,11 @@ class TerminalActivity : AppCompatActivity() {
     // FAB speed dial expansion state. Toggled by tapping the main FAB; child
     // actions are gone-by-default and animated in/out.
     private var fabExpanded = false
+
+    // Active image-upload progress dialog, or null when no upload is in
+    // flight. Held so onDestroy can dismiss it to avoid a window leak when
+    // the activity tears down mid-upload.
+    private var uploadDialog: AlertDialog? = null
 
     private var fontSizePx = DEFAULT_FONT_SIZE_PX
     private val terminalPrefs by lazy { getSharedPreferences(PREFS_TERMINAL, Context.MODE_PRIVATE) }
@@ -588,6 +597,11 @@ class TerminalActivity : AppCompatActivity() {
      * Upload the picked image to the remote host via SCP and, on success,
      * type its `/tmp/...` path into the SSH stdin so the user can submit
      * it to Claude Code by pressing Enter.
+     *
+     * A non-cancelable progress dialog blocks the UI for the duration so a
+     * second pick can't kick off a concurrent upload; the Cancel button
+     * interrupts the SCP worker so a hung network upload can be abandoned
+     * without disconnecting the whole SSH session.
      */
     private fun onImagePicked(uri: Uri) {
         val svc = service
@@ -612,19 +626,58 @@ class TerminalActivity : AppCompatActivity() {
             Toast.makeText(this, R.string.image_upload_read_failed, Toast.LENGTH_SHORT).show()
             return
         }
-        Toast.makeText(this, R.string.image_upload_in_progress, Toast.LENGTH_SHORT).show()
-        svc.uploadBytes(bytes, filename, REMOTE_TMP_DIR) { error ->
+
+        val cancelled = AtomicBoolean(false)
+        val padding = dpToPx(24)
+        val progressView = ProgressBar(this).apply { isIndeterminate = true }
+        val container = FrameLayout(this).apply {
+            setPadding(padding, padding, padding, padding)
+            addView(
+                progressView,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    Gravity.CENTER,
+                ),
+            )
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.image_upload_in_progress)
+            .setView(container)
+            .setCancelable(false)
+            .create()
+
+        val uploadFuture = svc.uploadBytes(bytes, filename, REMOTE_TMP_DIR) { error ->
+            if (cancelled.get()) return@uploadBytes
+            uploadDialog = null
+            if (error == null) {
+                // Kick off the SSH write before dismiss() so the SSH round-trip
+                // overlaps the dialog's exit animation; otherwise the path
+                // appears noticeably after the dialog disappears.
+                val pathRef = "$REMOTE_TMP_DIR/$filename "
+                writeToSsh(pathRef.toByteArray(Charsets.UTF_8))
+            }
+            dialog.dismiss()
             if (error != null) {
                 Toast.makeText(
                     this,
                     getString(R.string.image_upload_failed, error.message ?: ""),
                     Toast.LENGTH_LONG,
                 ).show()
-                return@uploadBytes
             }
-            val pathRef = "$REMOTE_TMP_DIR/$filename "
-            writeToSsh(pathRef.toByteArray(Charsets.UTF_8))
         }
+
+        dialog.setButton(
+            DialogInterface.BUTTON_NEGATIVE,
+            getString(R.string.image_upload_cancel),
+        ) { _, _ ->
+            cancelled.set(true)
+            uploadDialog = null
+            uploadFuture?.cancel(true)
+            Toast.makeText(this, R.string.image_upload_cancelled, Toast.LENGTH_SHORT).show()
+        }
+        uploadDialog = dialog
+        dialog.show()
     }
 
     private fun extensionForMime(mime: String): String = when (mime.lowercase()) {
@@ -1312,6 +1365,8 @@ private fun styleModifierButton(button: Button) {
     }
 
     override fun onDestroy() {
+        uploadDialog?.dismiss()
+        uploadDialog = null
         if (bound) {
             service?.detachOutputListener()
             service?.removeStatusListener(statusListener)

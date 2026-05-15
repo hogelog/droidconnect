@@ -19,6 +19,7 @@ import org.hogel.pocketssh.ui.TerminalActivity
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
+import java.util.concurrent.Future
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
@@ -289,24 +290,32 @@ class SshConnectionService : Service() {
     /**
      * Upload [bytes] to the remote host as [remoteDir]/[filename] via SCP.
      * [onResult] is invoked on the main thread with `null` on success or the
-     * thrown error on failure.
+     * thrown error on failure. Returns a [Future] the caller can `cancel(true)`
+     * to interrupt the upload thread; the SCP socket I/O unblocks with
+     * `InterruptedIOException`, so a stuck upload can be aborted without
+     * tearing down the whole SSH connection. Returns `null` if the service is
+     * not connected (in which case [onResult] is still posted asynchronously).
      */
     fun uploadBytes(
         bytes: ByteArray,
         filename: String,
         remoteDir: String,
         onResult: (Throwable?) -> Unit,
-    ) {
+    ): Future<*>? {
         val ssh = session
         if (ssh == null || state != State.CONNECTED) {
             mainHandler.post { onResult(IllegalStateException("Not connected")) }
-            return
+            return null
         }
-        scpExecutor.execute {
+        return scpExecutor.submit {
             val error = try {
                 ssh.uploadBytes(bytes, filename, remoteDir)
                 null
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                return@submit
             } catch (e: Throwable) {
+                if (Thread.currentThread().isInterrupted) return@submit
                 Log.e(TAG, "SCP upload failed", e)
                 e
             }

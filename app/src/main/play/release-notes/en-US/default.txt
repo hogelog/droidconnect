@@ -1,5 +1,3 @@
-- Relicensed to MIT.
-- Added in-app open-source licenses screen.
-- Added "Open repository" item to the overflow menu.
-- "Include learned suggestions" in Export is now opt-in.
-- Sentry crash reporting is restricted to debug builds.
+- Send images directly from your keyboard's image input.
+- Show an upload progress dialog with cancel for image uploads.
+- New native tab strip below the terminal for switching tmux windows.

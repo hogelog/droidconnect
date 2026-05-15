@@ -25,6 +25,7 @@ import androidx.core.content.edit
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import org.hogel.pocketssh.databinding.ActivityMainBinding
+import org.hogel.pocketssh.debug.DebugMenu
 import org.hogel.pocketssh.settings.SettingsBackup
 import org.hogel.pocketssh.shortcuts.ShortcutStore
 import org.hogel.pocketssh.ssh.SshConnectionService
@@ -122,6 +123,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.menu_main, menu)
+        DebugMenu.inflate(this, menu)
         return true
     }
 
@@ -153,7 +155,7 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.open_repository_url))))
             true
         }
-        else -> super.onOptionsItemSelected(item)
+        else -> if (DebugMenu.handle(this, item)) true else super.onOptionsItemSelected(item)
     }
 
     private fun showExportSettingsDialog() {

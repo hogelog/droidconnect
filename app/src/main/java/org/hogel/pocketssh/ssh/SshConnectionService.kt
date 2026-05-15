@@ -243,6 +243,16 @@ class SshConnectionService : Service() {
      * Register an output listener. The full output history accumulated so
      * far is delivered on the main thread as backlog; the history is not
      * cleared so future attaches can replay it again.
+     *
+     * The backlog is delivered in [BACKLOG_REPLAY_CHUNK_BYTES] chunks across
+     * separate `Handler.post` calls so the UI thread can interleave input
+     * events between chunks. With a single 256 KB post the emulator's
+     * synchronous `append` (plus every OSC title fan-out) saturates the
+     * main thread long enough that taps land after the terminal has
+     * already gone unresponsive — and worse, blocking SSH reads back up
+     * tmux on the server side, which then can't service new keystrokes
+     * either. The freeze persisted across activity recreation because
+     * each fresh attach re-replayed the (still-growing) buffer.
      */
     fun attachOutputListener(listener: (ByteArray) -> Unit) {
         val backlog: ByteArray?
@@ -250,7 +260,15 @@ class SshConnectionService : Service() {
             backlog = if (outputHistory.size() > 0) outputHistory.toByteArray() else null
             outputListener = listener
         }
-        backlog?.let { mainHandler.post { listener(it) } }
+        backlog?.let { full ->
+            var offset = 0
+            while (offset < full.size) {
+                val end = minOf(offset + BACKLOG_REPLAY_CHUNK_BYTES, full.size)
+                val chunk = full.copyOfRange(offset, end)
+                mainHandler.post { listener(chunk) }
+                offset = end
+            }
+        }
     }
 
     fun detachOutputListener() {
@@ -405,6 +423,7 @@ class SshConnectionService : Service() {
         private const val CHANNEL_ID = "ssh_connection"
         private const val NOTIFICATION_ID = 1001
         private const val MAX_BUFFER_BYTES = 256 * 1024
+        private const val BACKLOG_REPLAY_CHUNK_BYTES = 16 * 1024
         private const val KEEPALIVE_INTERVAL_SECONDS = 120L
         private const val TAG = "SshConnectionService"
     }

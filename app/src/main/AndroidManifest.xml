@@ -55,6 +55,17 @@
             android:name=".ui.LicensesActivity"
             android:parentActivityName=".MainActivity" />
 
+        <!-- Diagnostic screens are gated behind a hidden menu (seven taps on the
+             version label). intent-filter is intentionally absent so exported
+             defaults to false and no other app can launch them. -->
+        <activity
+            android:name=".debug.DiagDumpActivity"
+            android:parentActivityName=".MainActivity" />
+
+        <activity
+            android:name=".debug.LogcatActivity"
+            android:parentActivityName=".MainActivity" />
+
         <service
             android:name=".ssh.SshConnectionService"
             android:exported="false"

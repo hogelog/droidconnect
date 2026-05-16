@@ -156,4 +156,17 @@
     <string name="window_new">New window</string>
     <string name="window_new_label">+</string>
     <string name="window_tab_label">%1$d: %2$s</string>
+
+    <string name="diag_dump_title">Diagnostic dump</string>
+    <string name="diag_dump_copy">Copy</string>
+    <string name="diag_dump_copied">Diagnostic dump copied</string>
+
+    <string name="logcat_title">Logcat</string>
+    <string name="logcat_refresh">Refresh</string>
+    <string name="logcat_copy">Copy</string>
+    <string name="logcat_copied">Logcat copied</string>
+    <string name="logcat_unavailable">Failed to read logcat: %1$s</string>
+
+    <string name="debug_menu_enabled">Debug options enabled</string>
+    <string name="debug_menu_already_enabled">Debug options are already enabled</string>
 </resources>

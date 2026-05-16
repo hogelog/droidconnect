@@ -17,9 +17,10 @@ import org.hogel.pocketssh.ssh.HostKeyStore
 import org.hogel.pocketssh.ssh.SshKeyManager
 
 /**
- * Debug-only diagnostic snapshot of app state. Lives in the debug source
- * set so the activity, its layout, and its supporting strings never ship
- * in the release APK.
+ * Diagnostic snapshot of app state. Reached through the hidden menu that
+ * MainActivity reveals after seven taps on the version label. The dump is
+ * shown on screen and copied to the clipboard on demand; nothing is sent
+ * off-device.
  */
 class DiagDumpActivity : AppCompatActivity() {
 

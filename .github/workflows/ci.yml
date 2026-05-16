@@ -103,6 +103,7 @@ jobs:
           APK_NAME: ${{ steps.ci_prerelease.outputs.apk_name }}
         run: |
           RELEASE_URL="${SERVER_URL}/${REPO}/releases/tag/${TAG}"
+          APK_URL="${SERVER_URL}/${REPO}/releases/download/${TAG}/${APK_NAME}"
           MARKER="<!-- pocketsecureshell-ci-build -->"
 
           # Hide previous CI build comments on this PR
@@ -136,7 +137,7 @@ jobs:
           CI build for \`${HEAD_SHA}\` is ready.
 
           - Release: ${RELEASE_URL}
-          - APK: \`${APK_NAME}\`
+          - APK: [\`${APK_NAME}\`](${APK_URL})
           - Revision: \`${HEAD_SHA}\`"
 
       - name: Upload to DeployGate

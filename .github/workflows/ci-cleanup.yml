@@ -4,6 +4,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   delete-prerelease:
@@ -19,6 +20,7 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Deleting CI prerelease ${TAG}"
             gh release delete "$TAG" --yes --cleanup-tag
+            gh pr comment "$PR_NUMBER" --body "CI prerelease \`${TAG}\` deleted."
           else
             echo "No CI prerelease ${TAG} to delete"
           fi

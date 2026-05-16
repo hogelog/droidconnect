@@ -1658,8 +1658,10 @@ private fun styleModifierButton(button: Button) {
         private const val MOUSE_CLASSIC_COORD_MAX = 223
         // Emit one wheel event per this many rows of finger travel. tmux's
         // default response to a wheel event is three lines, so stepping every
-        // two rows works out to a comfortable ~1.5× amplification.
-        private const val SCROLL_LINES_PER_WHEEL = 2f
+        // three rows keeps drag distance and scrolled content roughly in sync
+        // while cutting the per-swipe wheel-event count — and therefore the
+        // SSH round trips that drive tmux copy-mode redraw latency.
+        private const val SCROLL_LINES_PER_WHEEL = 3f
 
         // Horizontal-swipe thresholds for the tmux window-switch gesture.
         // Distance is the commit threshold: once cumulative |dx| crosses it

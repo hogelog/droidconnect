@@ -257,6 +257,11 @@ class TerminalActivity : AppCompatActivity() {
 
     // Vertical-drag accumulator for setupTerminalScrollRouting.
     private var scrollRemainderPx = 0f
+    // Set once this gesture has emitted at least one wheel sequence. In
+    // mouse-tracking mode we use this to know tmux has already auto-entered
+    // copy-mode, so the next `C-u`/`C-d` half-page byte hits copy-mode's
+    // handler instead of the shell.
+    private var copyModeArmed = false
     // True between onDown and ACTION_UP/CANCEL whenever we have claimed a
     // vertical drag. Used to swallow subsequent events from `TerminalView` so
     // its own `doScroll` doesn't emit a duplicate mouse/arrow sequence to the
@@ -1093,17 +1098,26 @@ private fun styleModifierButton(button: Button) {
      * because that session's pty has echo on by default, bytes it writes come
      * straight back out as visible text in the screen buffer.
      *
+     * Long drags are split into half-page jumps plus a wheel-step remainder
+     * so one round trip moves a large chunk of buffer at a time, instead of
+     * the SSH/tmux redraw stalling on a queue of single-line wheel events.
+     *
      * Three cases, mirroring Termux's own `doScroll` dispatch:
      *
-     * 1. Mouse tracking active (e.g. tmux `set -g mouse on`): emit an xterm
-     *    classic mouse-wheel sequence (`\e[M<b+32><x+32><y+32>`) per
-     *    [SCROLL_LINES_PER_WHEEL] rows of drag. We use the classic format
-     *    instead of SGR because plain `set -g mouse on` only advertises
-     *    DECSET 1000/1002 — SGR (1006) is opt-in, and if tmux is not in SGR
-     *    mode it treats the `\e[<...M` bytes as literal text.
+     * 1. Mouse tracking active (e.g. tmux `set -g mouse on`): for each
+     *    half-screen of cumulative drag emit `C-u`/`C-d` to scroll copy-mode
+     *    half a page; for the leftover emit xterm classic mouse-wheel
+     *    sequences (`\e[M<b+32><x+32><y+32>`) per [SCROLL_LINES_PER_WHEEL]
+     *    rows. tmux auto-enters copy-mode on a wheel event, so before the
+     *    first half-page we prime it with one wheel emit (tracked via
+     *    [copyModeArmed]). Classic format instead of SGR because plain
+     *    `set -g mouse on` only advertises DECSET 1000/1002 — SGR (1006) is
+     *    opt-in, and tmux without it treats `\e[<...M` as literal text.
      * 2. Alt buffer active but mouse tracking off (tmux with mouse off, vim,
-     *    less): emit `DPAD_UP` / `DPAD_DOWN` key codes — what Termux does
-     *    natively for the same case.
+     *    less): same split, but `C-u`/`C-d` go straight to the foreground
+     *    program (vim normal mode and less both treat them as half-page
+     *    scroll) and the wheel-step remainder uses `DPAD_UP`/`DPAD_DOWN`
+     *    key codes — what Termux does natively for that case.
      * 3. Otherwise: do nothing and let `TerminalView`'s native `mTopRow`
      *    scrollback path handle the gesture.
      *
@@ -1126,6 +1140,7 @@ private fun styleModifierButton(button: Button) {
         val detector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDown(e: MotionEvent): Boolean {
                 scrollRemainderPx = 0f
+                copyModeArmed = false
                 handlingScrollGesture = false
                 tappedThisGesture = false
                 gestureAxis = GestureAxis.UNDETERMINED
@@ -1204,18 +1219,30 @@ private fun styleModifierButton(button: Button) {
 
                 val lineHeight = binding.terminalView.height.toFloat() / rows
                 if (lineHeight <= 0f) return false
-                val step = lineHeight * SCROLL_LINES_PER_WHEEL
+                val wheelStepPx = lineHeight * SCROLL_LINES_PER_WHEEL
+                // Floor the half-page step so a short pane (or a small
+                // SCROLL_LINES_PER_WHEEL) still costs strictly more travel
+                // than emitting wheels would.
+                val halfPageRows = (rows / 2f).coerceAtLeast(SCROLL_LINES_PER_WHEEL * HALF_PAGE_MIN_WHEEL_STEPS)
+                val halfPageStepPx = lineHeight * halfPageRows
                 // From this point on we own the gesture even if we end up
                 // emitting zero bytes this frame — otherwise TerminalView would
                 // pick up the leftover motion and scroll the dummy pty.
                 handlingScrollGesture = true
                 val total = distanceY + scrollRemainderPx
-                val deltaWheels = (total / step).toInt()
-                scrollRemainderPx = total - deltaWheels * step
-                if (deltaWheels == 0) return true
+                val deltaHalfPages = (total / halfPageStepPx).toInt()
+                val afterHalfPages = total - deltaHalfPages * halfPageStepPx
+                val deltaWheels = (afterHalfPages / wheelStepPx).toInt()
+                scrollRemainderPx = afterHalfPages - deltaWheels * wheelStepPx
+                if (deltaHalfPages == 0 && deltaWheels == 0) return true
 
-                val up = deltaWheels < 0
-                val repeats = abs(deltaWheels)
+                // deltaHalfPages and deltaWheels share the sign of `total`
+                // (the remainder after integer division keeps the dividend's
+                // sign), so summing is safe for picking the direction.
+                val up = (deltaHalfPages + deltaWheels) < 0
+                val halfPageRepeats = abs(deltaHalfPages)
+                val wheelRepeats = abs(deltaWheels)
+                val halfPageByte = if (up) CTRL_U_BYTE else CTRL_D_BYTE
                 when {
                     emu.isMouseTrackingActive -> {
                         val cols = emu.mColumns
@@ -1225,24 +1252,37 @@ private fun styleModifierButton(button: Button) {
                         val row = ((e2.y / lineHeight).toInt() + 1)
                             .coerceIn(1, MOUSE_CLASSIC_COORD_MAX.coerceAtMost(rows))
                         val button = if (up) WHEEL_UP_BUTTON else WHEEL_DOWN_BUTTON
-                        val bytes = byteArrayOf(
+                        val wheelBytes = byteArrayOf(
                             0x1B, '['.code.toByte(), 'M'.code.toByte(),
                             (32 + button).toByte(),
                             (32 + col).toByte(),
                             (32 + row).toByte(),
                         )
-                        repeat(repeats) { writeToSsh(bytes) }
+                        if (halfPageRepeats > 0) {
+                            if (!copyModeArmed) {
+                                writeToSsh(wheelBytes)
+                                copyModeArmed = true
+                            }
+                            repeat(halfPageRepeats) { writeToSsh(byteArrayOf(halfPageByte)) }
+                        }
+                        if (wheelRepeats > 0) {
+                            repeat(wheelRepeats) { writeToSsh(wheelBytes) }
+                            copyModeArmed = true
+                        }
                     }
                     emu.isAlternateBufferActive -> {
-                        val keyCode = if (up) KeyEvent.KEYCODE_DPAD_UP else KeyEvent.KEYCODE_DPAD_DOWN
-                        val code = KeyHandler.getCode(
-                            keyCode, 0,
-                            emu.isCursorKeysApplicationMode,
-                            emu.isKeypadApplicationMode,
-                        )
-                        if (code != null) {
-                            val bytes = code.toByteArray(Charsets.UTF_8)
-                            repeat(repeats) { writeToSsh(bytes) }
+                        repeat(halfPageRepeats) { writeToSsh(byteArrayOf(halfPageByte)) }
+                        if (wheelRepeats > 0) {
+                            val keyCode = if (up) KeyEvent.KEYCODE_DPAD_UP else KeyEvent.KEYCODE_DPAD_DOWN
+                            val code = KeyHandler.getCode(
+                                keyCode, 0,
+                                emu.isCursorKeysApplicationMode,
+                                emu.isKeypadApplicationMode,
+                            )
+                            if (code != null) {
+                                val bytes = code.toByteArray(Charsets.UTF_8)
+                                repeat(wheelRepeats) { writeToSsh(bytes) }
+                            }
                         }
                     }
                 }
@@ -1282,6 +1322,7 @@ private fun styleModifierButton(button: Button) {
                     }
                     hideSwipeFeedback()
                     handlingScrollGesture = false
+                    copyModeArmed = false
                     tappedThisGesture = false
                     gestureAxis = GestureAxis.UNDETERMINED
                     pendingSwipeDirection = 0
@@ -1289,6 +1330,7 @@ private fun styleModifierButton(button: Button) {
                 MotionEvent.ACTION_CANCEL -> {
                     hideSwipeFeedback()
                     handlingScrollGesture = false
+                    copyModeArmed = false
                     tappedThisGesture = false
                     gestureAxis = GestureAxis.UNDETERMINED
                     pendingSwipeDirection = 0
@@ -1658,10 +1700,19 @@ private fun styleModifierButton(button: Button) {
         private const val MOUSE_CLASSIC_COORD_MAX = 223
         // Emit one wheel event per this many rows of finger travel. tmux's
         // default response to a wheel event is three lines, so stepping every
-        // three rows keeps drag distance and scrolled content roughly in sync
-        // while cutting the per-swipe wheel-event count — and therefore the
-        // SSH round trips that drive tmux copy-mode redraw latency.
+        // three rows keeps drag distance and scrolled content roughly in sync.
         private const val SCROLL_LINES_PER_WHEEL = 3f
+        // For long drags we coalesce into half-page jumps (`C-u`/`C-d`) so
+        // one round trip moves a large chunk of buffer instead of stalling
+        // on a queue of single-line wheel events. tmux mode-keys (both vi
+        // and emacs), vim normal mode, and less all treat 0x15 / 0x04 as
+        // half-page scroll.
+        private const val CTRL_U_BYTE: Byte = 0x15
+        private const val CTRL_D_BYTE: Byte = 0x04
+        // Don't pick a half-page step shorter than this many wheel steps —
+        // otherwise on a short pane a half-page would be barely more than
+        // one wheel event and the coalescing wouldn't be worth its weight.
+        private const val HALF_PAGE_MIN_WHEEL_STEPS = 2f
 
         // Horizontal-swipe thresholds for the tmux window-switch gesture.
         // Distance is the commit threshold: once cumulative |dx| crosses it

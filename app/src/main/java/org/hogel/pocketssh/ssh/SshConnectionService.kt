@@ -14,6 +14,7 @@ import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import org.hogel.pocketssh.BuildConfig
 import org.hogel.pocketssh.R
 import org.hogel.pocketssh.ui.TerminalActivity
 import java.io.ByteArrayOutputStream
@@ -54,6 +55,26 @@ class SshConnectionService : Service() {
 
     @Volatile
     var lastError: Throwable? = null
+        private set
+
+    @Volatile
+    var serviceStartedAt: Long = 0L
+        private set
+
+    @Volatile
+    var lastConnectedAt: Long = 0L
+        private set
+
+    @Volatile
+    var lastReadAt: Long = 0L
+        private set
+
+    @Volatile
+    var totalReadBytes: Long = 0L
+        private set
+
+    @Volatile
+    var lastKeepaliveAt: Long = 0L
         private set
 
     private var session: SshSession? = null
@@ -103,6 +124,7 @@ class SshConnectionService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        serviceStartedAt = System.currentTimeMillis()
         createNotificationChannel()
     }
 
@@ -142,6 +164,7 @@ class SshConnectionService : Service() {
             connectionLabel = "${params.username}@${params.host}:${params.port}"
             useTmux = params.useTmux
             lastTitle = null
+            trace { "state -> CONNECTING (useTmux=${params.useTmux})" }
             updateNotification(getString(R.string.notification_text_connecting))
             readThread = thread(name = "ssh-read") {
                 runReadLoop(params, authenticator, hostKeyPrompt, columns, rows)
@@ -171,6 +194,7 @@ class SshConnectionService : Service() {
                 hostKeyVerifier,
             )
             ssh.connect()
+            trace { "ssh connected, opening shell" }
             ssh.openShell(
                 columns.coerceAtLeast(1),
                 rows.coerceAtLeast(1),
@@ -178,17 +202,28 @@ class SshConnectionService : Service() {
             )
             session = ssh
             state = State.CONNECTED
+            lastConnectedAt = System.currentTimeMillis()
+            trace { "state -> CONNECTED" }
             updateNotification(getString(R.string.notification_text_connected, connectionLabel))
             startKeepalive(ssh)
             notifyStatus { it.onSshConnected() }
 
             val buffer = ByteArray(8192)
             val input = ssh.stdout
+            var lastReadTrace = 0L
             while (true) {
                 val n = input.read(buffer)
                 if (n == -1) break
+                val now = System.currentTimeMillis()
+                lastReadAt = now
+                totalReadBytes += n
+                if (BuildConfig.DEBUG && now - lastReadTrace >= READ_TRACE_INTERVAL_MS) {
+                    Log.d(TAG, "read total=$totalReadBytes bytes")
+                    lastReadTrace = now
+                }
                 deliverOutput(buffer.copyOf(n))
             }
+            trace { "read loop EOF (total=$totalReadBytes)" }
         } catch (e: Throwable) {
             caught = e
             Log.e(TAG, "SSH session error", e)
@@ -198,6 +233,7 @@ class SshConnectionService : Service() {
             session = null
             lastError = caught
             state = if (caught != null) State.FAILED else State.DISCONNECTED
+            trace { "state -> $state" }
             notifyStatus { it.onSshDisconnected(caught) }
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
             stopSelf()
@@ -211,6 +247,8 @@ class SshConnectionService : Service() {
         keepaliveTask = keepaliveExecutor.scheduleWithFixedDelay({
             try {
                 ssh.sendKeepalive()
+                lastKeepaliveAt = System.currentTimeMillis()
+                trace { "keepalive ok" }
             } catch (e: Exception) {
                 Log.w(TAG, "SSH keepalive failed", e)
             }
@@ -260,6 +298,7 @@ class SshConnectionService : Service() {
             backlog = if (outputHistory.size() > 0) outputHistory.toByteArray() else null
             outputListener = listener
         }
+        trace { "attachOutputListener backlog=${backlog?.size ?: 0}" }
         backlog?.let { full ->
             var offset = 0
             while (offset < full.size) {
@@ -273,6 +312,7 @@ class SshConnectionService : Service() {
 
     fun detachOutputListener() {
         synchronized(outputLock) { outputListener = null }
+        trace { "detachOutputListener" }
     }
 
     fun addStatusListener(listener: StatusListener) {
@@ -411,12 +451,54 @@ class SshConnectionService : Service() {
             .notify(NOTIFICATION_ID, buildNotification(text))
     }
 
+    fun snapshot(): Snapshot {
+        val bufferBytes: Int
+        val attached: Boolean
+        synchronized(outputLock) {
+            bufferBytes = outputHistory.size()
+            attached = outputListener != null
+        }
+        return Snapshot(
+            state = state,
+            lastError = lastError,
+            connectionLabel = connectionLabel,
+            useTmux = useTmux,
+            lastTitle = lastTitle,
+            outputBufferBytes = bufferBytes,
+            listenerAttached = attached,
+            serviceStartedAt = serviceStartedAt,
+            lastConnectedAt = lastConnectedAt,
+            lastReadAt = lastReadAt,
+            totalReadBytes = totalReadBytes,
+            lastKeepaliveAt = lastKeepaliveAt,
+        )
+    }
+
+    data class Snapshot(
+        val state: State,
+        val lastError: Throwable?,
+        val connectionLabel: String,
+        val useTmux: Boolean,
+        val lastTitle: String?,
+        val outputBufferBytes: Int,
+        val listenerAttached: Boolean,
+        val serviceStartedAt: Long,
+        val lastConnectedAt: Long,
+        val lastReadAt: Long,
+        val totalReadBytes: Long,
+        val lastKeepaliveAt: Long,
+    )
+
     data class ConnectionParams(
         val host: String,
         val port: Int,
         val username: String,
         val useTmux: Boolean = false,
     )
+
+    private inline fun trace(message: () -> String) {
+        if (BuildConfig.DEBUG) Log.d(TAG, message())
+    }
 
     companion object {
         const val ACTION_STOP = "org.hogel.pocketssh.action.STOP_CONNECTION"
@@ -425,6 +507,7 @@ class SshConnectionService : Service() {
         private const val MAX_BUFFER_BYTES = 256 * 1024
         private const val BACKLOG_REPLAY_CHUNK_BYTES = 16 * 1024
         private const val KEEPALIVE_INTERVAL_SECONDS = 120L
+        private const val READ_TRACE_INTERVAL_MS = 10_000L
         private const val TAG = "SshConnectionService"
     }
 }

@@ -3,7 +3,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 jobs:
@@ -121,6 +121,28 @@ jobs:
       - name: Remove keystore from runner
         if: always()
         run: rm -f "${RUNNER_TEMP}/release.keystore"
+
+      - name: Publish main debug prerelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          SHORT_SHA="${HEAD_SHA:0:7}"
+          TAG="main-debug"
+          APK_NAME="pocketsecureshell-main-${SHORT_SHA}-debug.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "$APK_NAME"
+          # Replace any existing main-debug release so only the latest main
+          # build is published under this tag.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Deleting previous release ${TAG}"
+            gh release delete "$TAG" --yes --cleanup-tag
+          fi
+          gh release create "$TAG" \
+            --title "Main debug build (${SHORT_SHA})" \
+            --notes "Automatic debug build of main at ${HEAD_SHA}" \
+            --prerelease \
+            --target "${HEAD_SHA}" \
+            "$APK_NAME"
 
       - name: Upload to DeployGate
         env:

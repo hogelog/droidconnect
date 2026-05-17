@@ -135,6 +135,17 @@ class SshSession(
         connection?.sendIgnorePacket()
     }
 
+    /**
+     * Round-trip liveness check: sends `SSH_MSG_GLOBAL_REQUEST
+     * keepalive@openssh.com` with want_reply=true and blocks until the server
+     * answers (with REQUEST_FAILURE, which is the expected reply). On a
+     * half-open socket this never returns, so the caller must invoke this on a
+     * worker thread and time it out externally.
+     */
+    fun ping() {
+        connection?.ping() ?: throw IllegalStateException("Not connected")
+    }
+
     fun disconnect() {
         isConnected = false
         try { session?.close() } catch (_: Exception) {}

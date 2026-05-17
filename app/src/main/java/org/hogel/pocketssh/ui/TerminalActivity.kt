@@ -40,6 +40,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
+import com.google.android.material.snackbar.Snackbar
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -89,6 +90,12 @@ class TerminalActivity : AppCompatActivity() {
     private var bound = false
 
     private var pendingParams: SshConnectionService.ConnectionParams? = null
+
+    @Volatile
+    private var probeInFlight: Boolean = false
+
+    @Volatile
+    private var staleConnectionHandled: Boolean = false
 
     // BiometricPrompt callbacks run on this executor; we keep the UI thread
     // free and post prompt-show calls explicitly via runOnUiThread below.
@@ -312,6 +319,7 @@ class TerminalActivity : AppCompatActivity() {
         }
 
         override fun onSshDisconnected(error: Throwable?) {
+            if (staleConnectionHandled) return
             val message = if (error != null) {
                 "${getString(R.string.connection_failed)}: ${error.message}"
             } else {
@@ -412,6 +420,36 @@ class TerminalActivity : AppCompatActivity() {
         // the cascade on every resume so edits take effect the moment we come
         // back, without waiting for tmux to re-emit the title OSC.
         applyContext(lastAppContext)
+        maybeProbeLiveness()
+    }
+
+    private fun maybeProbeLiveness() {
+        if (staleConnectionHandled || probeInFlight) return
+        val svc = service ?: return
+        if (svc.state != SshConnectionService.State.CONNECTED) return
+        probeInFlight = true
+        kotlin.concurrent.thread(name = "ssh-probe-caller", isDaemon = true) {
+            val alive = svc.probeLiveness(PROBE_TIMEOUT_MS)
+            runOnUiThread {
+                probeInFlight = false
+                if (!alive) handleStaleConnection()
+            }
+        }
+    }
+
+    private fun handleStaleConnection() {
+        if (staleConnectionHandled) return
+        staleConnectionHandled = true
+        service?.shutdown()
+        Snackbar.make(
+            binding.root,
+            R.string.terminal_freeze_detected_message,
+            Snackbar.LENGTH_INDEFINITE,
+        ).setAction(R.string.terminal_freeze_detected_action) {
+            val reconnect = Intent(intent)
+            finish()
+            startActivity(reconnect)
+        }.show()
     }
 
     private fun startAndBindService() {
@@ -1645,6 +1683,7 @@ private fun styleModifierButton(button: Button) {
         private const val DEFAULT_TMUX_PREFIX_LETTER = "b"
         private const val TAG = "TerminalActivity"
         private const val FAB_COLLAPSED_ALPHA = 0.3f
+        private const val PROBE_TIMEOUT_MS = 4_000L
 
         // Mirrors termux's private DECSET_BIT_BRACKETED_PASTE_MODE (DECSET 2004).
         private const val DECSET_BIT_BRACKETED_PASTE_MODE = 1 shl 10

@@ -109,6 +109,10 @@ class SshConnectionService : Service() {
         Thread(r, "ssh-write").apply { isDaemon = true }
     }
 
+    private val probeExecutor = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "ssh-probe").apply { isDaemon = true }
+    }
+
     // SCP uploads run on a separate executor so they don't block keystroke
     // writes on `sshWriteExecutor` while a multi-MB image is being streamed.
     private val scpExecutor = Executors.newSingleThreadExecutor { r ->
@@ -400,10 +404,44 @@ class SshConnectionService : Service() {
             .start()
     }
 
+    /**
+     * Round-trip liveness check. Blocks the calling thread for up to
+     * [timeoutMs] waiting on `Connection.ping()` (a global request with
+     * want_reply). Returns false on timeout, exception, or when the service
+     * is not currently in [State.CONNECTED]. A half-open socket leaves the
+     * underlying call blocked forever; the timeout path returns without
+     * cancelling the probe thread because the next [shutdown] will close the
+     * connection and unblock it.
+     */
+    fun probeLiveness(timeoutMs: Long): Boolean {
+        if (state != State.CONNECTED) return false
+        val ssh = session ?: return false
+        val future = probeExecutor.submit<Boolean> {
+            try {
+                ssh.ping()
+                true
+            } catch (e: Exception) {
+                Log.w(TAG, "probeLiveness ping failed", e)
+                false
+            }
+        }
+        val result = try {
+            future.get(timeoutMs, TimeUnit.MILLISECONDS)
+        } catch (e: java.util.concurrent.TimeoutException) {
+            false
+        } catch (e: Exception) {
+            Log.w(TAG, "probeLiveness wait failed", e)
+            false
+        }
+        trace { "probeLiveness result=$result (timeoutMs=$timeoutMs)" }
+        return result
+    }
+
     override fun onDestroy() {
         sshWriteExecutor.shutdownNow()
         scpExecutor.shutdownNow()
         keepaliveExecutor.shutdownNow()
+        probeExecutor.shutdownNow()
         super.onDestroy()
     }
 

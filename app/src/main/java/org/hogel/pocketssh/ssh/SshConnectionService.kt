@@ -394,6 +394,35 @@ class SshConnectionService : Service() {
         }
     }
 
+    /**
+     * Run `tmux select-window -t pocketssh:<window>` over a separate SSH
+     * session and report success/failure on the main thread. The interactive
+     * shell session is unaffected. Used by the `pss://open?window=...`
+     * deeplink path to land on the requested tmux window. A failure (window
+     * not found, network error, etc.) leaves the user on whatever window the
+     * shell session was already showing.
+     */
+    fun execTmuxSelectWindow(window: String, onResult: (Boolean) -> Unit) {
+        val ssh = session
+        if (ssh == null || state != State.CONNECTED) {
+            mainHandler.post { onResult(false) }
+            return
+        }
+        Thread({
+            val ok = runCatching {
+                val target = shellQuote("pocketssh:$window")
+                ssh.execCommand("tmux select-window -t $target") == 0
+            }.getOrElse {
+                Log.e(TAG, "tmux select-window failed for '$window'", it)
+                false
+            }
+            mainHandler.post { onResult(ok) }
+        }, "tmux-select-window").apply { isDaemon = true }.start()
+    }
+
+    private fun shellQuote(value: String): String =
+        "'" + value.replace("'", "'\\''") + "'"
+
     /** Tear down the SSH connection; the service will stop itself. */
     fun shutdown() {
         // disconnect() sends an SSH-level message and must not run on the

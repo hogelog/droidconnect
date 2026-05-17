@@ -1,5 +1,6 @@
 package org.hogel.pocketssh.ssh
 
+import com.trilead.ssh2.ChannelCondition
 import com.trilead.ssh2.Connection
 import com.trilead.ssh2.SCPClient
 import com.trilead.ssh2.ServerHostKeyVerifier
@@ -128,6 +129,37 @@ class SshSession(
     fun uploadBytes(bytes: ByteArray, filename: String, remoteDir: String) {
         val conn = connection ?: throw IllegalStateException("Not connected")
         SCPClient(conn).put(bytes, filename, remoteDir)
+    }
+
+    /**
+     * Run a one-shot command on a separate SSH session over the same connection.
+     * Blocks until the remote command exits or [timeoutMs] elapses. Returns the
+     * remote exit status (or -1 on timeout / missing status). The interactive
+     * shell session is unaffected. Call from a background thread.
+     */
+    fun execCommand(command: String, timeoutMs: Long = 5_000): Int {
+        val conn = connection ?: throw IllegalStateException("Not connected")
+        val sess = conn.openSession()
+        try {
+            sess.execCommand(command)
+            // Drain stdout/stderr so the remote can flush and exit cleanly.
+            drain(sess.stdout)
+            drain(sess.stderr)
+            sess.waitForCondition(
+                ChannelCondition.EXIT_STATUS or ChannelCondition.CLOSED,
+                timeoutMs,
+            )
+            return sess.exitStatus ?: -1
+        } finally {
+            try { sess.close() } catch (_: Exception) {}
+        }
+    }
+
+    private fun drain(input: InputStream) {
+        val buf = ByteArray(1024)
+        try {
+            while (input.read(buf) > 0) { /* discard */ }
+        } catch (_: Exception) { /* channel closed */ }
     }
 
     /** Send an SSH_MSG_IGNORE packet to keep NAT/firewall mappings warm. */

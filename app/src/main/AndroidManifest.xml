@@ -22,6 +22,16 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- pss://open?window=<tmux_window> deeplink. Switches the active
+                 tmux window after the SSH session connects, using saved
+                 credentials. The tmux session is the one this app already
+                 attaches to (`pocketssh`). -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="pss" android:host="open" />
+            </intent-filter>
         </activity>
 
         <activity

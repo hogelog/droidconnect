@@ -38,6 +38,8 @@
     <string name="connection_failed">Connection failed</string>
     <string name="disconnected">Disconnected</string>
     <string name="disconnect">Disconnect</string>
+    <string name="deeplink_missing_window">pss:// deeplink is missing the required \"window\" parameter.</string>
+    <string name="deeplink_missing_credentials">No saved SSH credentials. Open the app and connect once before using a deeplink.</string>
     <string name="terminal_freeze_detected_message">Connection appears unresponsive.</string>
     <string name="terminal_freeze_detected_action">Reconnect</string>
     <string name="status_connecting_to">Connecting to %1$s…</string>

@@ -90,6 +90,10 @@ class TerminalActivity : AppCompatActivity() {
     private var bound = false
 
     private var pendingParams: SshConnectionService.ConnectionParams? = null
+    // Pending tmux window from a deeplink intent. Set in onCreate / onNewIntent,
+    // cleared after execTmuxSelectWindow fires (whether cold-start once SSH
+    // connects, or warm-start immediately on onNewIntent).
+    private var pendingTmuxWindow: String? = null
 
     @Volatile
     private var probeInFlight: Boolean = false
@@ -381,6 +385,7 @@ class TerminalActivity : AppCompatActivity() {
     private val statusListener = object : SshConnectionService.StatusListener {
         override fun onSshConnected() {
             service?.let { syncWindowSize(it) }
+            flushPendingTmuxWindow()
         }
 
         override fun onSshDisconnected(error: Throwable?) {
@@ -425,6 +430,12 @@ class TerminalActivity : AppCompatActivity() {
             // out of the buffer.
             useTmux = svc.useTmux
             applyTitle(svc.lastTitle)
+            // Already-connected branch: a deeplink fired while the SSH session
+            // was alive needs to switch windows now (no onSshConnected callback
+            // will come). Cold-start instead waits for statusListener.
+            if (svc.state == SshConnectionService.State.CONNECTED) {
+                flushPendingTmuxWindow()
+            }
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
@@ -453,6 +464,7 @@ class TerminalActivity : AppCompatActivity() {
                 intent.getBooleanExtra(EXTRA_USE_TMUX, false),
             )
         }
+        pendingTmuxWindow = intent.getStringExtra(EXTRA_TMUX_WINDOW)
 
         setupTerminalView()
         setupTerminalScrollRouting()
@@ -491,6 +503,39 @@ class TerminalActivity : AppCompatActivity() {
         // back, without waiting for tmux to re-emit the title OSC.
         applyContext(lastAppContext)
         maybeProbeLiveness()
+    }
+
+    override fun onNewIntent(newIntent: Intent) {
+        super.onNewIntent(newIntent)
+        // Warm-start path for the pss://open?window=... deeplink. The activity
+        // is launchMode=singleTop, so MainActivity re-issues us with the new
+        // window target instead of starting a fresh instance.
+        setIntent(newIntent)
+        newIntent.getStringExtra(EXTRA_TMUX_WINDOW)?.let { window ->
+            pendingTmuxWindow = window
+            flushPendingTmuxWindow()
+        }
+    }
+
+    /**
+     * Fire the deferred `tmux select-window` for [pendingTmuxWindow], if any.
+     * Safe to call multiple times: clears the field on consumption so a later
+     * onSshConnected does not re-fire. Toasts on failure.
+     */
+    private fun flushPendingTmuxWindow() {
+        val window = pendingTmuxWindow ?: return
+        val svc = service ?: return
+        if (svc.state != SshConnectionService.State.CONNECTED) return
+        pendingTmuxWindow = null
+        svc.execTmuxSelectWindow(window) { ok ->
+            if (!ok) {
+                Toast.makeText(
+                    this,
+                    "tmux window '$window' not found",
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
     }
 
     private fun maybeProbeLiveness() {
@@ -1764,6 +1809,9 @@ private fun styleModifierButton(button: Button) {
         const val EXTRA_PORT = "port"
         const val EXTRA_USERNAME = "username"
         const val EXTRA_USE_TMUX = "use_tmux"
+        // Deeplink (pss://open?window=...) target. When present, switch to
+        // the named tmux window once the SSH session is connected.
+        const val EXTRA_TMUX_WINDOW = "tmux_window"
         private const val DEFAULT_COLUMNS = 80
         private const val DEFAULT_ROWS = 24
         private const val DEFAULT_FONT_SIZE_PX = 16

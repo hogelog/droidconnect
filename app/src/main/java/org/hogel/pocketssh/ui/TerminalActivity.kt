@@ -40,7 +40,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
-import com.google.android.material.snackbar.Snackbar
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -555,16 +554,9 @@ class TerminalActivity : AppCompatActivity() {
     private fun handleStaleConnection() {
         if (staleConnectionHandled) return
         staleConnectionHandled = true
+        Toast.makeText(this, R.string.terminal_freeze_detected_message, Toast.LENGTH_SHORT).show()
         service?.shutdown()
-        Snackbar.make(
-            binding.root,
-            R.string.terminal_freeze_detected_message,
-            Snackbar.LENGTH_INDEFINITE,
-        ).setAction(R.string.terminal_freeze_detected_action) {
-            val reconnect = Intent(intent)
-            finish()
-            startActivity(reconnect)
-        }.show()
+        finish()
     }
 
     private fun startAndBindService() {

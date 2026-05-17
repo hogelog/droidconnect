@@ -36,7 +36,7 @@
 
         <activity
             android:name=".ui.TerminalActivity"
-            android:launchMode="singleTop"
+            android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize"
             android:configChanges="keyboard|keyboardHidden|screenSize|orientation" />
 
